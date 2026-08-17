@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Modify this file to customize your launch splash screen -->
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@android:color/white" />
-
-    <!-- You can insert your own image assets here -->
-    <!-- <item>
-        <bitmap
-            android:gravity="center"
-            android:src="@mipmap/launch_image" />
-    </item> -->
-</layer-list>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#060D1A"
+        android:pathData="M0,0h108v108h-108z"/>
+    <!-- Wallet Emerald Icon -->
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M24,32h60c4.4,0,8,3.6,8,8v32c0,4.4-3.6,8-8,8H24c-4.4,0-8-3.6-8-8V40c0-4.4,3.6-8,8-8zm48,20a4,4,0,1,0,0,8,4,4,0,0,0,0-8z"/>
+</vector>
