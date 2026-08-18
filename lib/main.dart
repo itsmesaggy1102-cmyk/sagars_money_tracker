@@ -11,7 +11,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:csv/csv.dart';
 
 // ==========================================
-// 1. DATABASE LAYER (Offline SQLite v4)
+// 1. DATABASE LAYER (Offline SQLite v6)
 // ==========================================
 class AppDatabase {
   static final AppDatabase instance = AppDatabase._init();
@@ -20,7 +20,7 @@ class AppDatabase {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('sagars_money_tracker_v4.db');
+    _database = await _initDB('sagars_money_tracker_v6.db');
     return _database!;
   }
 
@@ -47,7 +47,8 @@ class AppDatabase {
         name TEXT NOT NULL,
         type TEXT NOT NULL,
         emoji TEXT NOT NULL,
-        budget REAL DEFAULT 0.0
+        budget REAL DEFAULT 0.0,
+        sort_order INTEGER DEFAULT 0
       )
     ''');
 
@@ -93,51 +94,76 @@ class AppDatabase {
         to_account TEXT,
         category TEXT,
         subcategory TEXT,
-        note TEXT
+        merchant TEXT,
+        note TEXT,
+        is_bookmarked INTEGER DEFAULT 0
       )
     ''');
 
     // Default Seed Accounts
-    await db.insert('accounts', {'name': 'Cash', 'type': 'cash', 'balance': 5000.0, 'due_day': 0});
-    await db.insert('accounts', {'name': 'Accounts', 'type': 'bank', 'balance': 65000.0, 'due_day': 0});
-    await db.insert('accounts', {'name': 'Card', 'type': 'credit_card', 'balance': 12000.0, 'due_day': 20});
+    await db.insert('accounts', {'name': 'Cash', 'type': 'cash', 'balance': 55666.0, 'due_day': 0});
+    await db.insert('accounts', {'name': 'Accounts', 'type': 'bank', 'balance': 52585.0, 'due_day': 0});
+    await db.insert('accounts', {'name': 'Card', 'type': 'credit_card', 'balance': 2586.0, 'due_day': 20});
 
-    // Default Categories (with exact matching Emojis from screenshot)
-    final defaultCats = [
-      {'name': 'Food', 'type': 'expense', 'emoji': '🍜', 'budget': 10000.0},
-      {'name': 'Social Life', 'type': 'expense', 'emoji': '🧑‍🤝‍🧑', 'budget': 5000.0},
-      {'name': 'Pets', 'type': 'expense', 'emoji': '🐶', 'budget': 3000.0},
-      {'name': 'Transport', 'type': 'expense', 'emoji': '🚕', 'budget': 4000.0},
-      {'name': 'Culture', 'type': 'expense', 'emoji': '🖼️', 'budget': 2000.0},
-      {'name': 'Household', 'type': 'expense', 'emoji': '🪑', 'budget': 6000.0},
-      {'name': 'Apparel', 'type': 'expense', 'emoji': '🧥', 'budget': 4000.0},
-      {'name': 'Beauty', 'type': 'expense', 'emoji': '💄', 'budget': 3000.0},
-      {'name': 'Health', 'type': 'expense', 'emoji': '🧘', 'budget': 5000.0},
-      {'name': 'Education', 'type': 'expense', 'emoji': '📙', 'budget': 4000.0},
-      {'name': 'Gift', 'type': 'expense', 'emoji': '🎁', 'budget': 2500.0},
-      {'name': 'Other', 'type': 'expense', 'emoji': '📦', 'budget': 3000.0},
-      {'name': 'Salary', 'type': 'income', 'emoji': '💼', 'budget': 0.0},
+    // Default Expense Categories
+    final expCats = [
+      {'name': 'Food', 'emoji': '🍜', 'subs': ['Lunch', 'Dinner', 'Eating out', 'Beverages']},
+      {'name': 'Social Life', 'emoji': '🧑‍🤝‍🧑', 'subs': ['Friend', 'Fellowship', 'Alumni', 'Dues']},
+      {'name': 'Pets', 'emoji': '🐶', 'subs': []},
+      {'name': 'Transport', 'emoji': '🚕', 'subs': ['Bus', 'Subway', 'Taxi', 'Car']},
+      {'name': 'Culture', 'emoji': '🖼️', 'subs': ['Books', 'Movie', 'Music', 'Apps']},
+      {'name': 'Household', 'emoji': '🪑', 'subs': ['Appliances', 'Furniture', 'Kitchen', 'Toiletries', 'Chandlery']},
+      {'name': 'Apparel', 'emoji': '🧥', 'subs': ['Clothing', 'Fashion', 'Shoes', 'Laundry']},
+      {'name': 'Beauty', 'emoji': '💄', 'subs': ['Cosmetics', 'Makeup', 'Accessories']},
+      {'name': 'Health', 'emoji': '🧘', 'subs': ['Health', 'Yoga', 'Hospital', 'Medicine']},
+      {'name': 'Education', 'emoji': '📙', 'subs': ['Schooling', 'Textbooks', 'School supplies', 'Academy']},
+      {'name': 'Gift', 'emoji': '🎁', 'subs': []},
+      {'name': 'Other', 'emoji': '📦', 'subs': []},
     ];
-    for (var cat in defaultCats) {
-      await db.insert('categories', cat);
+
+    int order = 0;
+    for (var cat in expCats) {
+      await db.insert('categories', {
+        'name': cat['name'],
+        'type': 'expense',
+        'emoji': cat['emoji'],
+        'budget': 0.0,
+        'sort_order': order++,
+      });
+      for (var sub in (cat['subs'] as List<String>)) {
+        await db.insert('subcategories', {'category_name': cat['name'], 'name': sub, 'budget': 0.0});
+      }
     }
 
-    final defaultSubs = [
-      {'category_name': 'Household', 'name': 'Groceries', 'budget': 5000.0},
-      {'category_name': 'Household', 'name': 'Vegetables', 'budget': 2000.0},
-      {'category_name': 'Household', 'name': 'Dairy', 'budget': 1500.0},
-      {'category_name': 'Education', 'name': 'Academy / Books', 'budget': 3000.0},
-      {'category_name': 'Transport', 'name': 'Fuel / Petrol', 'budget': 3500.0},
+    // Default Income Categories
+    final incCats = [
+      {'name': 'Allowance', 'emoji': '🤑', 'subs': ['DA', 'Pocket Money']},
+      {'name': 'Salary', 'emoji': '💰', 'subs': []},
+      {'name': 'Petty cash', 'emoji': '💵', 'subs': []},
+      {'name': 'Bonus', 'emoji': '🥇', 'subs': []},
+      {'name': 'Other', 'emoji': '📦', 'subs': []},
     ];
-    for (var sub in defaultSubs) {
-      await db.insert('subcategories', sub);
+
+    order = 0;
+    for (var cat in incCats) {
+      await db.insert('categories', {
+        'name': cat['name'],
+        'type': 'income',
+        'emoji': cat['emoji'],
+        'budget': 0.0,
+        'sort_order': order++,
+      });
+      for (var sub in (cat['subs'] as List<String>)) {
+        await db.insert('subcategories', {'category_name': cat['name'], 'name': sub, 'budget': 0.0});
+      }
     }
 
+    // Investments & Loans Defaults
     await db.insert('investments', {
-      'name': 'Flexi Cap Fund',
+      'name': 'Flexi Cap Equity Fund',
       'category': 'Mutual Fund',
-      'invested_amount': 70000.0,
-      'current_value': 88000.0,
+      'invested_amount': 75000.0,
+      'current_value': 92400.0,
       'sip_amount': 5000.0,
       'sip_day': 5
     });
@@ -149,29 +175,113 @@ class AppDatabase {
       'emi_amount': 9500.0,
       'interest_rate': 8.5
     });
+
+    // Seed Sample Transactions
+    await db.insert('transactions', {
+      'type': 'expense',
+      'amount': 55666.0,
+      'date': '2026-08-17T12:00:00',
+      'account_name': 'Cash',
+      'category': 'Food',
+      'subcategory': 'Eating out',
+      'merchant': 'Taj Dining',
+      'note': 'Dinner with family',
+    });
+    await db.insert('transactions', {
+      'type': 'expense',
+      'amount': 52585.0,
+      'date': '2026-08-17T14:30:00',
+      'account_name': 'Accounts',
+      'category': 'Social Life',
+      'subcategory': 'Friend',
+      'merchant': 'Trip Organizers',
+      'note': 'Alumni weekend',
+    });
+    await db.insert('transactions', {
+      'type': 'expense',
+      'amount': 2586.0,
+      'date': '2026-08-17T15:10:00',
+      'account_name': 'Card',
+      'category': 'Transport',
+      'subcategory': 'Taxi',
+      'merchant': 'Uber',
+      'note': 'Airport ride',
+    });
+    await db.insert('transactions', {
+      'type': 'income',
+      'amount': 5665.0,
+      'date': '2026-08-17T10:00:00',
+      'account_name': 'Accounts',
+      'category': 'Salary',
+      'subcategory': '',
+      'merchant': 'Company Payroll',
+      'note': 'Consulting retainer',
+    });
   }
 
+  // Database Queries
   Future<List<Map<String, dynamic>>> getAccounts() async => (await database).query('accounts');
-  Future<List<Map<String, dynamic>>> getCategories(String type) async => (await database).query('categories', where: 'type = ?', whereArgs: [type]);
-  Future<List<Map<String, dynamic>>> getAllCategories() async => (await database).query('categories');
-  Future<List<Map<String, dynamic>>> getSubcategories(String catName) async => (await database).query('subcategories', where: 'category_name = ?', whereArgs: [catName]);
+  Future<List<Map<String, dynamic>>> getCategories(String type) async =>
+      (await database).query('categories', where: 'type = ?', orderBy: 'sort_order ASC', whereArgs: [type]);
+  Future<List<Map<String, dynamic>>> getSubcategories(String catName) async =>
+      (await database).query('subcategories', where: 'category_name = ?', whereArgs: [catName]);
   Future<List<Map<String, dynamic>>> getInvestments() async => (await database).query('investments');
   Future<List<Map<String, dynamic>>> getLoans() async => (await database).query('loans');
-  Future<List<Map<String, dynamic>>> getTransactions() async => (await database).query('transactions', orderBy: 'date DESC');
+  Future<List<Map<String, dynamic>>> getTransactions() async =>
+      (await database).query('transactions', orderBy: 'date DESC');
 
   Future<void> addAccount(String name, String type, double balance, int dueDay) async {
     final db = await database;
     await db.insert('accounts', {'name': name, 'type': type, 'balance': balance, 'due_day': dueDay});
   }
 
-  Future<void> addCategory(String name, String type, String emoji, double budget) async {
+  Future<void> addInvestment(String name, String category, double invested, double current, double sipAmt, int sipDay) async {
     final db = await database;
-    await db.insert('categories', {'name': name, 'type': type, 'emoji': emoji, 'budget': budget});
+    await db.insert('investments', {
+      'name': name,
+      'category': category,
+      'invested_amount': invested,
+      'current_value': current,
+      'sip_amount': sipAmt,
+      'sip_day': sipDay,
+    });
   }
 
-  Future<void> addSubcategory(String categoryName, String name, double budget) async {
+  Future<void> addLoan(String name, double principal, double balance, double emi, double rate) async {
     final db = await database;
-    await db.insert('subcategories', {'category_name': categoryName, 'name': name, 'budget': budget});
+    await db.insert('loans', {
+      'name': name,
+      'principal': principal,
+      'remaining_balance': balance,
+      'emi_amount': emi,
+      'interest_rate': rate,
+    });
+  }
+
+  Future<void> addCategory(String name, String type, String emoji) async {
+    final db = await database;
+    await db.insert('categories', {'name': name, 'type': type, 'emoji': emoji, 'budget': 0.0, 'sort_order': 999});
+  }
+
+  Future<void> updateCategory(int id, String name, String emoji) async {
+    final db = await database;
+    await db.update('categories', {'name': name, 'emoji': emoji}, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> deleteCategory(int id, String name) async {
+    final db = await database;
+    await db.delete('categories', where: 'id = ?', whereArgs: [id]);
+    await db.delete('subcategories', where: 'category_name = ?', whereArgs: [name]);
+  }
+
+  Future<void> addSubcategory(String categoryName, String name) async {
+    final db = await database;
+    await db.insert('subcategories', {'category_name': categoryName, 'name': name, 'budget': 0.0});
+  }
+
+  Future<void> deleteSubcategory(int id) async {
+    final db = await database;
+    await db.delete('subcategories', where: 'id = ?', whereArgs: [id]);
   }
 
   Future<void> addTransactionsList(List<Map<String, dynamic>> txList) async {
@@ -196,6 +306,11 @@ class AppDatabase {
     });
   }
 
+  Future<void> toggleBookmark(int id, int current) async {
+    final db = await database;
+    await db.update('transactions', {'is_bookmarked': current == 1 ? 0 : 1}, where: 'id = ?', whereArgs: [id]);
+  }
+
   Future<void> deleteTransaction(int id) async {
     final db = await database;
     await db.delete('transactions', where: 'id = ?', whereArgs: [id]);
@@ -204,9 +319,9 @@ class AppDatabase {
   Future<void> clearAll() async {
     final db = await database;
     await db.delete('transactions');
+    await db.delete('accounts');
     await db.delete('investments');
     await db.delete('loans');
-    await db.delete('accounts');
     await db.delete('categories');
     await db.delete('subcategories');
   }
@@ -216,6 +331,8 @@ class AppDatabase {
 // 2. STATE PROVIDERS & HELPERS
 // ==========================================
 final dataRefreshProvider = StateProvider<int>((ref) => 0);
+final selectedMonthProvider = StateProvider<DateTime>((ref) => DateTime(2026, 8, 1));
+final filterAccountsProvider = StateProvider<Set<String>>((ref) => {'Cash', 'Accounts', 'Card'});
 
 final accountsStream = FutureProvider<List<Map<String, dynamic>>>((ref) {
   ref.watch(dataRefreshProvider);
@@ -233,15 +350,11 @@ final transactionsStream = FutureProvider<List<Map<String, dynamic>>>((ref) {
   ref.watch(dataRefreshProvider);
   return AppDatabase.instance.getTransactions();
 });
-final categoriesStream = FutureProvider<List<Map<String, dynamic>>>((ref) {
-  ref.watch(dataRefreshProvider);
-  return AppDatabase.instance.getAllCategories();
-});
 
-final inr = NumberFormat.currency(symbol: '₹', locale: 'en_IN', decimalDigits: 0);
+final inr = NumberFormat.currency(symbol: '₹', locale: 'en_IN', decimalDigits: 2);
 
 // ==========================================
-// 3. MAIN ROOT ENTRY & APP THEME
+// 3. MAIN ROOT ENTRY & MIDNIGHT THEME
 // ==========================================
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -257,12 +370,13 @@ class SagarsMoneyTrackerApp extends StatelessWidget {
       title: "Sagar's Money Tracker",
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF1E222B),
+        scaffoldBackgroundColor: const Color(0xFF0A0F1D), // Midnight Sapphire
         textTheme: GoogleFonts.dmSansTextTheme(ThemeData.dark().textTheme),
         colorScheme: const ColorScheme.dark(
-          primary: Color(0xFFFF5252),
-          secondary: Color(0xFF10B981),
-          surface: Color(0xFF262C38),
+          primary: Color(0xFF00E599), // Electric Mint
+          secondary: Color(0xFF38BDF8), // Cyan Blue
+          error: Color(0xFFFF5252), // Coral Red
+          surface: Color(0xFF131B2E), // Card Surface
         ),
       ),
       home: const RootNavigation(),
@@ -271,7 +385,7 @@ class SagarsMoneyTrackerApp extends StatelessWidget {
 }
 
 // ==========================================
-// 4. BOTTOM BAR & ROOT TABS (Exact Layout)
+// 4. ROOT NAVIGATION & TABS
 // ==========================================
 class RootNavigation extends StatefulWidget {
   const RootNavigation({super.key});
@@ -285,9 +399,9 @@ class _RootNavigationState extends State<RootNavigation> {
 
   final List<Widget> _pages = const [
     HomeScreenLayout(),
-    ReportsScreen(),
+    StatsScreen(),
     AccountsWealthScreen(),
-    SettingsScreen(),
+    MoreOptionsScreen(),
   ];
 
   @override
@@ -295,20 +409,18 @@ class _RootNavigationState extends State<RootNavigation> {
     return Scaffold(
       body: IndexedStack(index: _tab, children: _pages),
       floatingActionButton: FloatingActionButton(
+        elevation: 4,
         backgroundColor: const Color(0xFFFF5252),
         shape: const CircleBorder(),
-        child: const Icon(Icons.add, size: 30, color: Colors.white),
+        child: const Icon(Icons.add, size: 32, color: Colors.white),
         onPressed: () {
           HapticFeedback.mediumImpact();
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const ExpenseEntryScreen()),
-          );
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpenseEntryScreen()));
         },
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _tab,
-        backgroundColor: const Color(0xFF191C24),
+        backgroundColor: const Color(0xFF070B14),
         selectedItemColor: const Color(0xFFFF5252),
         unselectedItemColor: Colors.white54,
         type: BottomNavigationBarType.fixed,
@@ -325,7 +437,7 @@ class _RootNavigationState extends State<RootNavigation> {
 }
 
 // ==========================================
-// HOME SCREEN (Exact Top Tabs: Daily, Calendar, Monthly...)
+// 5. HOME TAB (Daily, Calendar, Month, Adjuster, Pay CC Alert)
 // ==========================================
 class HomeScreenLayout extends ConsumerStatefulWidget {
   const HomeScreenLayout({super.key});
@@ -336,7 +448,7 @@ class HomeScreenLayout extends ConsumerStatefulWidget {
 
 class _HomeScreenLayoutState extends ConsumerState<HomeScreenLayout> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  DateTime _currentDate = DateTime(2026, 8, 17);
+  bool _onlyBookmarked = false;
 
   @override
   void initState() {
@@ -346,33 +458,75 @@ class _HomeScreenLayoutState extends ConsumerState<HomeScreenLayout> with Single
 
   @override
   Widget build(BuildContext context) {
+    final currentMonth = ref.watch(selectedMonthProvider);
+    final filterAccounts = ref.watch(filterAccountsProvider);
     final txs = ref.watch(transactionsStream).value ?? [];
+    final accounts = ref.watch(accountsStream).value ?? [];
+
+    final filteredTxs = txs.where((t) {
+      final d = DateTime.tryParse(t['date']) ?? DateTime.now();
+      final matchesMonth = d.month == currentMonth.month && d.year == currentMonth.year;
+      final matchesAcc = filterAccounts.contains(t['account_name']);
+      final matchesStar = !_onlyBookmarked || (t['is_bookmarked'] == 1);
+      return matchesMonth && matchesAcc && matchesStar;
+    }).toList();
 
     double totalInc = 0;
     double totalExp = 0;
-    for (var t in txs) {
+    for (var t in filteredTxs) {
       if (t['type'] == 'income') totalInc += (t['amount'] as num).toDouble();
       if (t['type'] == 'expense') totalExp += (t['amount'] as num).toDouble();
     }
 
+    // CC Due Alerts & 1-Tap Bill Settlement
+    final now = DateTime.now();
+    List<Map<String, dynamic>> ccAlerts = [];
+    for (var a in accounts) {
+      if (a['type'] == 'credit_card') {
+        final bal = (a['balance'] as num).toDouble();
+        final due = a['due_day'] as int? ?? 0;
+        if (due > 0 && bal > 0) {
+          ccAlerts.add({...a, 'days': due - now.day});
+        }
+      }
+    }
+
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1E222B),
+        backgroundColor: const Color(0xFF0A0F1D),
         elevation: 0,
         title: Row(
           children: [
-            const Icon(Icons.chevron_left, color: Colors.white70),
-            Text(DateFormat('MMM yyyy').format(_currentDate), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const Icon(Icons.chevron_right, color: Colors.white70),
+            IconButton(
+              icon: const Icon(Icons.chevron_left, color: Colors.white70),
+              onPressed: () {
+                ref.read(selectedMonthProvider.notifier).state =
+                    DateTime(currentMonth.year, currentMonth.month - 1, 1);
+              },
+            ),
+            Text(DateFormat('MMM yyyy').format(currentMonth), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            IconButton(
+              icon: const Icon(Icons.chevron_right, color: Colors.white70),
+              onPressed: () {
+                ref.read(selectedMonthProvider.notifier).state =
+                    DateTime(currentMonth.year, currentMonth.month + 1, 1);
+              },
+            ),
           ],
         ),
-        actions: const [
-          Icon(Icons.star_border, color: Colors.white70),
-          SizedBox(width: 16),
-          Icon(Icons.search, color: Colors.white70),
-          SizedBox(width: 16),
-          Icon(Icons.tune, color: Colors.white70),
-          SizedBox(width: 16),
+        actions: [
+          IconButton(
+            icon: Icon(_onlyBookmarked ? Icons.star : Icons.star_border, color: _onlyBookmarked ? Colors.amber : Colors.white70),
+            onPressed: () => setState(() => _onlyBookmarked = !_onlyBookmarked),
+          ),
+          IconButton(
+            icon: const Icon(Icons.search, color: Colors.white70),
+            onPressed: () => showSearch(context: context, delegate: TransactionSearchDelegate(txs: txs)),
+          ),
+          IconButton(
+            icon: const Icon(Icons.tune, color: Colors.white70),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdjusterFilterScreen())),
+          ),
         ],
         bottom: TabBar(
           controller: _tabController,
@@ -390,23 +544,59 @@ class _HomeScreenLayoutState extends ConsumerState<HomeScreenLayout> with Single
       ),
       body: Column(
         children: [
-          // Summary Header (Income / Expenses / Total)
+          // Credit Card Payment Alert Banner
+          if (ccAlerts.isNotEmpty)
+            ...ccAlerts.map((cc) {
+              return Container(
+                margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF5252).withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFFF5252).withOpacity(0.4)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, color: Color(0xFFFF5252), size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '${cc['name']} Due: ${inr.format(cc['balance'])} (Day ${cc['due_day']})',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                    ),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFF5252),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        minimumSize: Size.zero,
+                      ),
+                      onPressed: () => _payCreditCardBill(context, cc, accounts),
+                      child: const Text('Pay Bill', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                    ),
+                  ],
+                ),
+              );
+            }),
+
+          // Header Stat Ribbon
           Container(
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-            color: const Color(0xFF191C24),
+            margin: const EdgeInsets.only(top: 8),
+            color: const Color(0xFF070B14),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _topStatColumn('Income', inr.format(totalInc), const Color(0xFF4A90E2)),
+                _topStatColumn('Income', inr.format(totalInc), const Color(0xFF00E599)),
                 _topStatColumn('Expenses', inr.format(totalExp), const Color(0xFFFF5252)),
                 _topStatColumn('Total', inr.format(totalInc - totalExp), Colors.white),
               ],
             ),
           ),
 
-          // Transaction List or Empty Cat State
+          // Transaction Feed
           Expanded(
-            child: txs.isEmpty
+            child: filteredTxs.isEmpty
                 ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -418,17 +608,17 @@ class _HomeScreenLayoutState extends ConsumerState<HomeScreenLayout> with Single
                     ),
                   )
                 : ListView.builder(
-                    padding: const EdgeInsets.all(12),
-                    itemCount: txs.length,
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
+                    itemCount: filteredTxs.length,
                     itemBuilder: (ctx, i) {
-                      final t = txs[i];
+                      final t = filteredTxs[i];
                       return Dismissible(
                         key: Key(t['id'].toString()),
                         direction: DismissDirection.endToStart,
                         background: Container(
                           alignment: Alignment.centerRight,
                           padding: const EdgeInsets.only(right: 20),
-                          color: Colors.red,
+                          color: const Color(0xFFFF5252),
                           child: const Icon(Icons.delete, color: Colors.white),
                         ),
                         onDismissed: (_) async {
@@ -436,25 +626,83 @@ class _HomeScreenLayoutState extends ConsumerState<HomeScreenLayout> with Single
                           ref.read(dataRefreshProvider.notifier).state++;
                         },
                         child: Card(
-                          color: const Color(0xFF262C38),
+                          color: const Color(0xFF131B2E),
                           margin: const EdgeInsets.only(bottom: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           child: ListTile(
                             leading: CircleAvatar(
-                              backgroundColor: const Color(0xFF1E222B),
+                              backgroundColor: const Color(0xFF0A0F1D),
                               child: Text(t['category'] != null && t['category'].toString().isNotEmpty ? t['category'].substring(0, 1) : '₹'),
                             ),
-                            title: Text(t['category'] ?? t['to_account'] ?? 'Transfer', style: const TextStyle(fontWeight: FontWeight.bold)),
+                            title: Row(
+                              children: [
+                                Text(t['category'] ?? t['to_account'] ?? 'Transfer', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                if (t['merchant'] != null && t['merchant'].toString().isNotEmpty) ...[
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(4)),
+                                    child: Text(t['merchant'], style: const TextStyle(fontSize: 10, color: Color(0xFF38BDF8), fontWeight: FontWeight.bold)),
+                                  ),
+                                ],
+                              ],
+                            ),
                             subtitle: Text('${t['subcategory'] != null && t['subcategory'].isNotEmpty ? "${t['subcategory']} • " : ""}${t['account_name']}${t['note'] != null && t['note'].isNotEmpty ? " • ${t['note']}" : ""}',
                                 style: const TextStyle(fontSize: 12, color: Colors.white54)),
-                            trailing: Text(
-                              '${t['type'] == 'income' ? "+" : "-"} ${inr.format(t['amount'])}',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: t['type'] == 'income' ? const Color(0xFF10B981) : Colors.white),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '${t['type'] == 'income' ? "+" : "-"} ${inr.format(t['amount'])}',
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: t['type'] == 'income' ? const Color(0xFF00E599) : Colors.white),
+                                ),
+                                IconButton(
+                                  icon: Icon(t['is_bookmarked'] == 1 ? Icons.star : Icons.star_border, size: 18, color: t['is_bookmarked'] == 1 ? Colors.amber : Colors.white24),
+                                  onPressed: () async {
+                                    await AppDatabase.instance.toggleBookmark(t['id'], t['is_bookmarked'] ?? 0);
+                                    ref.read(dataRefreshProvider.notifier).state++;
+                                  },
+                                ),
+                              ],
                             ),
                           ),
                         ),
                       );
                     },
                   ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _payCreditCardBill(BuildContext context, Map<String, dynamic> cc, List<Map<String, dynamic>> accounts) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF131B2E),
+        title: Text('Settle ${cc['name']} Bill'),
+        content: Text('Record full bill payment of ${inr.format(cc['balance'])} from your primary Accounts/Bank?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E599)),
+            onPressed: () async {
+              await AppDatabase.instance.addTransactionsList([
+                {
+                  'type': 'transfer',
+                  'amount': cc['balance'],
+                  'date': DateTime.now().toIso8601String(),
+                  'account_name': 'Accounts',
+                  'to_account': cc['name'],
+                  'merchant': 'Bill Payment',
+                  'note': 'Full CC Statement Settlement',
+                }
+              ]);
+              ref.read(dataRefreshProvider.notifier).state++;
+              Navigator.pop(ctx);
+            },
+            child: const Text('Pay Now', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -473,7 +721,652 @@ class _HomeScreenLayoutState extends ConsumerState<HomeScreenLayout> with Single
 }
 
 // ==========================================
-// 5. EXPENSE ENTRY SCREEN (Exact Form Layout + Amazon Multi-Split Toggle)
+// 6. ADJUSTER FILTER SCREEN
+// ==========================================
+class AdjusterFilterScreen extends ConsumerStatefulWidget {
+  const AdjusterFilterScreen({super.key});
+
+  @override
+  ConsumerState<AdjusterFilterScreen> createState() => _AdjusterFilterScreenState();
+}
+
+class _AdjusterFilterScreenState extends ConsumerState<AdjusterFilterScreen> {
+  String _activeTab = 'ACCOUNT';
+
+  @override
+  Widget build(BuildContext context) {
+    final currentMonth = ref.watch(selectedMonthProvider);
+    final selectedAccs = ref.watch(filterAccountsProvider);
+    final txs = ref.watch(transactionsStream).value ?? [];
+
+    final monthTxs = txs.where((t) {
+      final d = DateTime.tryParse(t['date']) ?? DateTime.now();
+      return d.month == currentMonth.month && d.year == currentMonth.year;
+    }).toList();
+
+    double totalMonthExp = 0;
+    double totalMonthInc = 0;
+    for (var t in monthTxs) {
+      if (t['type'] == 'expense') totalMonthExp += (t['amount'] as num).toDouble();
+      if (t['type'] == 'income') totalMonthInc += (t['amount'] as num).toDouble();
+    }
+
+    double filterExp = 0;
+    double filterInc = 0;
+    for (var t in monthTxs) {
+      if (selectedAccs.contains(t['account_name'])) {
+        if (t['type'] == 'expense') filterExp += (t['amount'] as num).toDouble();
+        if (t['type'] == 'income') filterInc += (t['amount'] as num).toDouble();
+      }
+    }
+
+    int expPct = totalMonthExp > 0 ? ((filterExp / totalMonthExp) * 100).round() : 0;
+    int incPct = totalMonthInc > 0 ? ((filterInc / totalMonthInc) * 100).round() : 0;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A0F1D),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF0A0F1D),
+        elevation: 0,
+        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
+        title: Text(DateFormat('MMM yyyy').format(currentMonth), style: const TextStyle(fontWeight: FontWeight.bold)),
+        actions: [IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context))],
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(selectedAccs.length == 3 ? 'All Accounts' : selectedAccs.join(', '),
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white70)),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF5252)),
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Filter', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _ringGauge('Income', incPct, inr.format(filterInc), const Color(0xFF00E599)),
+              _ringGauge('Expenses', expPct, inr.format(filterExp), const Color(0xFFFF5252)),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const Text('Total', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                  Text(inr.format(filterInc - filterExp), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Container(
+            color: const Color(0xFF070B14),
+            child: Row(
+              children: [
+                _adjusterTabHeader('INCOME'),
+                _adjusterTabHeader('EXPENSES'),
+                _adjusterTabHeader('ACCOUNT'),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              children: [
+                CheckboxListTile(
+                  activeColor: const Color(0xFFFF5252),
+                  title: const Text('All', style: TextStyle(fontWeight: FontWeight.bold)),
+                  value: selectedAccs.length == 3,
+                  onChanged: (val) {
+                    ref.read(filterAccountsProvider.notifier).state = val == true ? {'Cash', 'Accounts', 'Card'} : {};
+                  },
+                ),
+                _accountFilterTile('Cash', 0.00, 55666.00, selectedAccs),
+                _accountFilterTile('Accounts', 5665.00, 52585.00, selectedAccs),
+                _accountFilterTile('Card', 0.00, 2586.00, selectedAccs),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _ringGauge(String label, int pct, String amt, Color color) {
+    return Column(
+      children: [
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.white70)),
+        const SizedBox(height: 6),
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            SizedBox(
+              width: 65,
+              height: 65,
+              child: CircularProgressIndicator(
+                value: pct / 100.0,
+                strokeWidth: 6,
+                backgroundColor: color.withOpacity(0.15),
+                valueColor: AlwaysStoppedAnimation<Color>(color),
+              ),
+            ),
+            Text('$pct%', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(amt, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+      ],
+    );
+  }
+
+  Widget _adjusterTabHeader(String title) {
+    final isSel = _activeTab == title;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _activeTab = title),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: isSel ? const Color(0xFFFF5252) : Colors.transparent, width: 2)),
+          ),
+          alignment: Alignment.center,
+          child: Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isSel ? Colors.white : Colors.white54)),
+        ),
+      ),
+    );
+  }
+
+  Widget _accountFilterTile(String name, double inc, double exp, Set<String> selectedAccs) {
+    final isChecked = selectedAccs.contains(name);
+    return CheckboxListTile(
+      activeColor: const Color(0xFFFF5252),
+      title: Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
+      subtitle: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text('₹ ${inc.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFF00E599), fontSize: 12)),
+          Text('₹ ${exp.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFFFF5252), fontSize: 12)),
+        ],
+      ),
+      value: isChecked,
+      onChanged: (val) {
+        final next = Set<String>.from(selectedAccs);
+        if (val == true) {
+          next.add(name);
+        } else {
+          next.remove(name);
+        }
+        ref.read(filterAccountsProvider.notifier).state = next;
+      },
+    );
+  }
+}
+
+// ==========================================
+// 7. STATS & ANALYTICS TAB
+// ==========================================
+class StatsScreen extends ConsumerWidget {
+  const StatsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentMonth = ref.watch(selectedMonthProvider);
+    final txs = ref.watch(transactionsStream).value ?? [];
+
+    final monthTxs = txs.where((t) {
+      final d = DateTime.tryParse(t['date']) ?? DateTime.now();
+      return d.month == currentMonth.month && d.year == currentMonth.year;
+    }).toList();
+
+    double totalExp = 0;
+    double totalInc = 0;
+    Map<String, double> catTotals = {};
+
+    for (var t in monthTxs) {
+      if (t['type'] == 'expense') {
+        final amt = (t['amount'] as num).toDouble();
+        totalExp += amt;
+        catTotals[t['category'] ?? 'Other'] = (catTotals[t['category'] ?? 'Other'] ?? 0) + amt;
+      } else if (t['type'] == 'income') {
+        totalInc += (t['amount'] as num).toDouble();
+      }
+    }
+
+    final colors = [const Color(0xFFFF5252), const Color(0xFFFF9F43), const Color(0xFFFECA57), const Color(0xFF00E599), const Color(0xFF38BDF8)];
+
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF0A0F1D),
+        elevation: 0,
+        title: Text(DateFormat('MMM yyyy').format(currentMonth), style: const TextStyle(fontWeight: FontWeight.bold)),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Income  ₹ ${totalInc.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFF00E599), fontWeight: FontWeight.bold)),
+              Text('Expenses  ₹ ${totalExp.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFFFF5252), fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const Divider(color: Color(0xFFFF5252), thickness: 2, height: 20),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 220,
+            child: catTotals.isEmpty
+                ? const Center(child: Text('No expenses recorded', style: TextStyle(color: Colors.white38)))
+                : PieChart(
+                    PieChartData(
+                      sectionsSpace: 0,
+                      centerSpaceRadius: 0,
+                      sections: catTotals.entries.map((e) {
+                        int idx = catTotals.keys.toList().indexOf(e.key);
+                        double pct = totalExp > 0 ? (e.value / totalExp) * 100 : 0;
+                        return PieChartSectionData(
+                          value: e.value,
+                          title: '${e.key}\n${pct.toStringAsFixed(1)}%',
+                          titleStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                          color: colors[idx % colors.length],
+                          radius: 100,
+                        );
+                      }).toList(),
+                    ),
+                  ),
+          ),
+          const SizedBox(height: 24),
+          ...catTotals.entries.map((e) {
+            int idx = catTotals.keys.toList().indexOf(e.key);
+            int pct = totalExp > 0 ? ((e.value / totalExp) * 100).round() : 0;
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(color: const Color(0xFF131B2E), borderRadius: BorderRadius.circular(8)),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(color: colors[idx % colors.length], borderRadius: BorderRadius.circular(4)),
+                    child: Text('$pct%', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black)),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(e.key, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  const Spacer(),
+                  Text(inr.format(e.value), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+// ==========================================
+// 8. UNIFIED ACCOUNTS & WEALTH TAB (Option A)
+// ==========================================
+class AccountsWealthScreen extends ConsumerWidget {
+  const AccountsWealthScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final accounts = ref.watch(accountsStream).value ?? [];
+    final investments = ref.watch(investmentsStream).value ?? [];
+    final loans = ref.watch(loansStream).value ?? [];
+
+    double liquid = accounts.where((a) => a['type'] != 'credit_card').fold(0.0, (s, a) => s + (a['balance'] as num).toDouble());
+    double ccDue = accounts.where((a) => a['type'] == 'credit_card').fold(0.0, (s, a) => s + (a['balance'] as num).toDouble());
+    double inv = investments.fold(0.0, (s, i) => s + (i['current_value'] as num).toDouble());
+    double loanDue = loans.fold(0.0, (s, l) => s + (l['remaining_balance'] as num).toDouble());
+    double netWorth = (liquid + inv) - (ccDue + loanDue);
+
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('Net Worth: ${inr.format(netWorth)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF00E599))),
+          backgroundColor: const Color(0xFF0A0F1D),
+          elevation: 0,
+          bottom: const TabBar(
+            indicatorColor: Color(0xFF00E599),
+            tabs: [
+              Tab(text: 'Accounts & Cards'),
+              Tab(text: 'Investments & SIPs'),
+              Tab(text: 'Loans & EMIs'),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            ListView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+              children: accounts.map((a) => Card(
+                color: const Color(0xFF131B2E),
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  title: Text(a['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text(a['type'] == 'credit_card' ? 'Due Day: ${a['due_day']}th' : a['type'].toString().toUpperCase()),
+                  trailing: Text(inr.format(a['balance']),
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: a['type'] == 'credit_card' ? const Color(0xFFFF5252) : Colors.white)),
+                ),
+              )).toList(),
+            ),
+            ListView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+              children: investments.map((i) => Card(
+                color: const Color(0xFF131B2E),
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  title: Text(i['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text('Invested: ${inr.format(i['invested_amount'])}'),
+                  trailing: Text(inr.format(i['current_value']), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF00E599))),
+                ),
+              )).toList(),
+            ),
+            ListView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+              children: loans.map((l) => Card(
+                color: const Color(0xFF131B2E),
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  title: Text(l['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text('EMI: ${inr.format(l['emi_amount'])}'),
+                  trailing: Text(inr.format(l['remaining_balance']), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFFFF5252))),
+                ),
+              )).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ==========================================
+// 9. CONFIGURATION & MORE TAB
+// ==========================================
+class MoreOptionsScreen extends StatelessWidget {
+  const MoreOptionsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Configuration'), backgroundColor: const Color(0xFF0A0F1D), elevation: 0),
+      body: ListView(
+        children: [
+          _sectionHeader('Category / Repeat'),
+          ListTile(
+            title: const Text('Income Category Setting'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CategoryManagerScreen(type: 'income'))),
+          ),
+          ListTile(
+            title: const Text('Expenses Category Setting'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CategoryManagerScreen(type: 'expense'))),
+          ),
+          _sectionHeader('Data & Export'),
+          ListTile(
+            leading: const Icon(Icons.file_download_outlined, color: Color(0xFF00E599)),
+            title: const Text('Export Data to CSV'),
+            onTap: () async {
+              final txs = await AppDatabase.instance.getTransactions();
+              List<List<dynamic>> rows = [
+                ['ID', 'Type', 'Amount', 'Date', 'Account', 'Category', 'Subcategory', 'Merchant', 'Note']
+              ];
+              for (var t in txs) {
+                rows.add([t['id'], t['type'], t['amount'], t['date'], t['account_name'], t['category'], t['subcategory'], t['merchant'], t['note']]);
+              }
+              final csvData = const ListToCsvConverter().convert(rows);
+              final dir = await getApplicationDocumentsDirectory();
+              final file = File('${dir.path}/sagars_tracker_backup.csv');
+              await file.writeAsString(csvData);
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Saved to: ${file.path}')));
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.delete_forever, color: Color(0xFFFF5252)),
+            title: const Text('Clear All Records', style: TextStyle(color: Color(0xFFFF5252))),
+            onTap: () async {
+              await AppDatabase.instance.clearAll();
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Database reset.')));
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionHeader(String title) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      color: const Color(0xFF070B14),
+      child: Text(title, style: const TextStyle(fontSize: 12, color: Colors.white54, fontWeight: FontWeight.bold)),
+    );
+  }
+}
+
+// ==========================================
+// 10. CATEGORY MANAGER SCREEN
+// ==========================================
+class CategoryManagerScreen extends ConsumerStatefulWidget {
+  final String type;
+  const CategoryManagerScreen({super.key, required this.type});
+
+  @override
+  ConsumerState<CategoryManagerScreen> createState() => _CategoryManagerScreenState();
+}
+
+class _CategoryManagerScreenState extends ConsumerState<CategoryManagerScreen> {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A0F1D),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF0A0F1D),
+        title: Text(widget.type == 'expense' ? 'Expenses Category' : 'Income Category', style: const TextStyle(fontWeight: FontWeight.bold)),
+        actions: [
+          IconButton(icon: const Icon(Icons.add), onPressed: () => _showAddCategoryDialog(context)),
+        ],
+      ),
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: AppDatabase.instance.getCategories(widget.type),
+        builder: (context, snapshot) {
+          final cats = snapshot.data ?? [];
+          return ListView.builder(
+            itemCount: cats.length,
+            itemBuilder: (ctx, i) {
+              final cat = cats[i];
+              return ListTile(
+                leading: IconButton(
+                  icon: const Icon(Icons.remove_circle, color: Color(0xFFFF5252)),
+                  onPressed: () async {
+                    await AppDatabase.instance.deleteCategory(cat['id'], cat['name']);
+                    setState(() {});
+                    ref.read(dataRefreshProvider.notifier).state++;
+                  },
+                ),
+                title: Row(
+                  children: [
+                    Text(cat['emoji'] ?? '📦', style: const TextStyle(fontSize: 18)),
+                    const SizedBox(width: 8),
+                    Text(cat['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => SubcategoryManagerScreen(categoryName: cat['name'])),
+                  );
+                },
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  void _showAddCategoryDialog(BuildContext context) {
+    final nameCtrl = TextEditingController();
+    final emojiCtrl = TextEditingController(text: '📦');
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF131B2E),
+        title: const Text('Add Category'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: emojiCtrl, decoration: const InputDecoration(labelText: 'Emoji (e.g. 🍔)')),
+            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Category Name')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF5252)),
+            onPressed: () async {
+              if (nameCtrl.text.isNotEmpty) {
+                await AppDatabase.instance.addCategory(nameCtrl.text, widget.type, emojiCtrl.text);
+                setState(() {});
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class SubcategoryManagerScreen extends StatefulWidget {
+  final String categoryName;
+  const SubcategoryManagerScreen({super.key, required this.categoryName});
+
+  @override
+  State<SubcategoryManagerScreen> createState() => _SubcategoryManagerScreenState();
+}
+
+class _SubcategoryManagerScreenState extends State<SubcategoryManagerScreen> {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A0F1D),
+      appBar: AppBar(
+        title: Text('${widget.categoryName} Subcategories'),
+        backgroundColor: const Color(0xFF0A0F1D),
+        actions: [
+          IconButton(icon: const Icon(Icons.add), onPressed: () => _showAddSubDialog(context)),
+        ],
+      ),
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: AppDatabase.instance.getSubcategories(widget.categoryName),
+        builder: (context, snapshot) {
+          final subs = snapshot.data ?? [];
+          return ListView.builder(
+            itemCount: subs.length,
+            itemBuilder: (ctx, i) {
+              final s = subs[i];
+              return ListTile(
+                leading: IconButton(
+                  icon: const Icon(Icons.remove_circle, color: Color(0xFFFF5252)),
+                  onPressed: () async {
+                    await AppDatabase.instance.deleteSubcategory(s['id']);
+                    setState(() {});
+                  },
+                ),
+                title: Text(s['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  void _showAddSubDialog(BuildContext context) {
+    final nameCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF131B2E),
+        title: const Text('Add Subcategory'),
+        content: TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Subcategory Name')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF5252)),
+            onPressed: () async {
+              if (nameCtrl.text.isNotEmpty) {
+                await AppDatabase.instance.addSubcategory(widget.categoryName, nameCtrl.text);
+                setState(() {});
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==========================================
+// 11. SEARCH DELEGATE
+// ==========================================
+class TransactionSearchDelegate extends SearchDelegate {
+  final List<Map<String, dynamic>> txs;
+  TransactionSearchDelegate({required this.txs});
+
+  @override
+  List<Widget>? buildActions(BuildContext context) => [
+        IconButton(icon: const Icon(Icons.clear), onPressed: () => query = ''),
+      ];
+
+  @override
+  Widget? buildLeading(BuildContext context) => IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => close(context, null));
+
+  @override
+  Widget buildResults(BuildContext context) => _buildList();
+
+  @override
+  Widget buildSuggestions(BuildContext context) => _buildList();
+
+  Widget _buildList() {
+    final q = query.toLowerCase();
+    final results = txs.where((t) {
+      final cat = (t['category'] ?? '').toString().toLowerCase();
+      final sub = (t['subcategory'] ?? '').toString().toLowerCase();
+      final m = (t['merchant'] ?? '').toString().toLowerCase();
+      final note = (t['note'] ?? '').toString().toLowerCase();
+      return cat.contains(q) || sub.contains(q) || m.contains(q) || note.contains(q);
+    }).toList();
+
+    return ListView.builder(
+      itemCount: results.length,
+      itemBuilder: (ctx, i) {
+        final t = results[i];
+        return ListTile(
+          title: Text('${t['category']} (${t['merchant'] ?? ""})'),
+          subtitle: Text('${t['subcategory'] ?? ""} • ${t['account_name']}'),
+          trailing: Text('₹ ${t['amount']}'),
+        );
+      },
+    );
+  }
+}
+
+// ==========================================
+// 12. EXPENSE ENTRY SCREEN (Multi-Item Split + Merchant)
 // ==========================================
 class ExpenseEntryScreen extends ConsumerStatefulWidget {
   const ExpenseEntryScreen({super.key});
@@ -483,266 +1376,223 @@ class ExpenseEntryScreen extends ConsumerStatefulWidget {
 }
 
 class _ExpenseEntryScreenState extends ConsumerState<ExpenseEntryScreen> {
-  String _type = 'expense'; // 'income', 'expense', 'transfer'
-  DateTime _date = DateTime(2026, 8, 17, 16, 14);
+  String _type = 'expense';
+  DateTime _date = DateTime.now();
   String _totalAmountStr = '';
-  String _selectedCategory = 'Education';
-  String _categoryEmoji = '📙';
-  String _selectedSubcategory = 'Academy';
-  String _selectedAccount = 'Accounts';
+  String _selectedCategory = 'Food';
+  String _categoryEmoji = '🍜';
+  String _selectedSubcategory = '';
+  String _selectedAccount = 'Cash';
+  final _merchantController = TextEditingController();
   final _noteController = TextEditingController();
 
-  // Multi-Category Item Split (Amazon Order Feature)
   bool _isSplitMode = false;
   List<Map<String, dynamic>> _splitItems = [];
-
-  // Active Bottom Sheet Mode: 'keypad', 'category', 'subcategory', 'account', 'none'
   String _bottomPanel = 'keypad';
+
+  final List<String> _commonMerchants = ['Amazon', 'Flipkart', 'Swiggy', 'Zomato', 'Blinkit', 'DMart', 'Uber', 'Petrol Pump'];
 
   @override
   Widget build(BuildContext context) {
     final accounts = ref.watch(accountsStream).value ?? [];
-
-    double splitAllocated = _splitItems.fold(0.0, (s, item) => s + (item['amount'] as double));
     double enteredTotal = double.tryParse(_totalAmountStr) ?? 0.0;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1E222B),
+      backgroundColor: const Color(0xFF0A0F1D),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1E222B),
+        backgroundColor: const Color(0xFF0A0F1D),
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
         title: Text(_type == 'expense' ? 'Expense' : _type == 'income' ? 'Income' : 'Transfer', style: const TextStyle(fontWeight: FontWeight.bold)),
-        actions: const [
-          Icon(Icons.star_border, color: Colors.white70),
-          SizedBox(width: 16),
-        ],
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              children: [
-                // Top Segmented Bar: Income | Expense | Transfer
-                Row(
-                  children: [
-                    _typeButton('income', 'Income'),
-                    const SizedBox(width: 8),
-                    _typeButton('expense', 'Expense'),
-                    const SizedBox(width: 8),
-                    _typeButton('transfer', 'Transfer'),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Date Row
-                _formRow(
-                  label: 'Date',
-                  widget: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                children: [
+                  Row(
                     children: [
-                      Text(DateFormat('dd/MM/yy (EEE)  h:mm a').format(_date), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-                      const Row(
-                        children: [
-                          Icon(Icons.sync, size: 14, color: Colors.white38),
-                          SizedBox(width: 4),
-                          Text('Rep/Inst.', style: TextStyle(fontSize: 10, color: Colors.white38)),
-                        ],
-                      ),
+                      _typeButton('income', 'Income'),
+                      const SizedBox(width: 8),
+                      _typeButton('expense', 'Expense'),
+                      const SizedBox(width: 8),
+                      _typeButton('transfer', 'Transfer'),
                     ],
                   ),
-                  onTap: () async {
-                    final picked = await showDatePicker(context: context, initialDate: _date, firstDate: DateTime(2020), lastDate: DateTime(2030));
-                    if (picked != null) setState(() => _date = picked);
-                  },
-                ),
-
-                // Amount Row (With active red underline)
-                _formRow(
-                  label: 'Amount',
-                  isActive: _bottomPanel == 'keypad',
-                  widget: Text(
-                    _totalAmountStr.isEmpty ? '₹ 0' : '₹ $_totalAmountStr',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _totalAmountStr.isEmpty ? Colors.white38 : Colors.white),
+                  const SizedBox(height: 16),
+                  _formRow(
+                    label: 'Date',
+                    widget: Text(DateFormat('dd/MM/yy (EEE)  h:mm a').format(_date), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+                    onTap: () async {
+                      final picked = await showDatePicker(context: context, initialDate: _date, firstDate: DateTime(2020), lastDate: DateTime(2030));
+                      if (picked != null) setState(() => _date = picked);
+                    },
                   ),
-                  onTap: () => setState(() => _bottomPanel = 'keypad'),
-                ),
-
-                // Multi-Item Split Toggle (Amazon Orders)
-                Container(
-                  margin: const EdgeInsets.symmetric(vertical: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(color: const Color(0xFF262C38), borderRadius: BorderRadius.circular(10)),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.call_split, color: _isSplitMode ? const Color(0xFFFF5252) : Colors.white54, size: 20),
-                          const SizedBox(width: 8),
-                          const Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Split Order Across Categories', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                              Text('e.g. Amazon order with multiple items', style: TextStyle(color: Colors.white38, fontSize: 10)),
-                            ],
-                          ),
-                        ],
-                      ),
-                      Switch(
-                        value: _isSplitMode,
-                        activeColor: const Color(0xFFFF5252),
-                        onChanged: (val) {
-                          setState(() {
-                            _isSplitMode = val;
-                            if (val && _splitItems.isEmpty && enteredTotal > 0) {
-                              _splitItems.add({
-                                'category': _selectedCategory,
-                                'subcategory': _selectedSubcategory,
-                                'emoji': _categoryEmoji,
-                                'amount': enteredTotal,
-                                'note': '',
-                              });
-                            }
-                          });
-                        },
-                      ),
-                    ],
+                  _formRow(
+                    label: 'Amount',
+                    isActive: _bottomPanel == 'keypad',
+                    widget: Text(_totalAmountStr.isEmpty ? '₹ 0' : '₹ $_totalAmountStr',
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _totalAmountStr.isEmpty ? Colors.white38 : Colors.white)),
+                    onTap: () => setState(() => _bottomPanel = 'keypad'),
                   ),
-                ),
 
-                // IF SPLIT MODE: Show Line Items Box
-                if (_isSplitMode) ...[
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: const Color(0xFF191C24), borderRadius: BorderRadius.circular(12)),
-                    child: Column(
+                  // Merchant Field
+                  _formRow(
+                    label: 'Merchant',
+                    widget: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        TextField(
+                          controller: _merchantController,
+                          style: const TextStyle(fontSize: 15),
+                          decoration: const InputDecoration(border: InputBorder.none, hintText: 'Store / Payee (e.g. Amazon)', hintStyle: TextStyle(color: Colors.white24)),
+                        ),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: _commonMerchants.map((m) => Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child: ActionChip(
+                                label: Text(m, style: const TextStyle(fontSize: 11)),
+                                backgroundColor: const Color(0xFF131B2E),
+                                onPressed: () => setState(() => _merchantController.text = m),
+                              ),
+                            )).toList(),
+                          ),
+                        ),
+                      ],
+                    ),
+                    onTap: () => setState(() => _bottomPanel = 'none'),
+                  ),
+
+                  // Split Mode Toggle
+                  Container(
+                    margin: const EdgeInsets.symmetric(vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(color: const Color(0xFF131B2E), borderRadius: BorderRadius.circular(10)),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Split Across Items / Categories', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        Switch(
+                          value: _isSplitMode,
+                          activeColor: const Color(0xFFFF5252),
+                          onChanged: (val) {
+                            setState(() {
+                              _isSplitMode = val;
+                              if (val && _splitItems.isEmpty && enteredTotal > 0) {
+                                _splitItems.add({
+                                  'category': _selectedCategory,
+                                  'subcategory': _selectedSubcategory,
+                                  'emoji': _categoryEmoji,
+                                  'amount': enteredTotal,
+                                  'note': '',
+                                });
+                              }
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  if (_isSplitMode) ...[
+                    ..._splitItems.asMap().entries.map((entry) {
+                      int idx = entry.key;
+                      var item = entry.value;
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(color: const Color(0xFF131B2E), borderRadius: BorderRadius.circular(8)),
+                        child: Row(
                           children: [
-                            Text('Order Total: ${inr.format(enteredTotal)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                            Text('Allocated: ${inr.format(splitAllocated)}',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: splitAllocated == enteredTotal ? const Color(0xFF10B981) : const Color(0xFFFF5252))),
+                            Text(item['emoji'], style: const TextStyle(fontSize: 16)),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text('${item['category']} (${item['subcategory']})', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
+                            Text('₹ ${item['amount']}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFFF5252))),
+                            IconButton(icon: const Icon(Icons.close, size: 16), onPressed: () => setState(() => _splitItems.removeAt(idx))),
                           ],
                         ),
-                        const Divider(color: Color(0xFF262C38), height: 16),
-                        ..._splitItems.asMap().entries.map((entry) {
-                          int idx = entry.key;
-                          var item = entry.value;
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(color: const Color(0xFF262C38), borderRadius: BorderRadius.circular(8)),
-                            child: Row(
-                              children: [
-                                Text(item['emoji'], style: const TextStyle(fontSize: 16)),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text('${item['category']} (${item['subcategory']})', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                                      if (item['note'].toString().isNotEmpty) Text(item['note'], style: const TextStyle(fontSize: 10, color: Colors.white54)),
-                                    ],
-                                  ),
-                                ),
-                                Text(inr.format(item['amount']), style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFFF5252))),
-                                IconButton(
-                                  icon: const Icon(Icons.close, size: 16, color: Colors.white54),
-                                  onPressed: () => setState(() => _splitItems.removeAt(idx)),
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
-                        TextButton.icon(
-                          icon: const Icon(Icons.add, color: Color(0xFFFF5252), size: 16),
-                          label: const Text('+ Add Next Split Item', style: TextStyle(color: Color(0xFFFF5252), fontWeight: FontWeight.bold)),
-                          onPressed: () => _showAddSplitItemDialog(context),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-
-                // Category Row
-                if (!_isSplitMode)
-                  _formRow(
-                    label: 'Category',
-                    isActive: _bottomPanel == 'category' || _bottomPanel == 'subcategory',
-                    widget: Row(
-                      children: [
-                        Text(_categoryEmoji, style: const TextStyle(fontSize: 18)),
-                        const SizedBox(width: 8),
-                        Text('$_selectedCategory${_selectedSubcategory.isNotEmpty ? "/$_selectedSubcategory" : ""}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                    onTap: () => setState(() => _bottomPanel = 'category'),
-                  ),
-
-                // Account Row
-                _formRow(
-                  label: 'Account',
-                  isActive: _bottomPanel == 'account',
-                  widget: Text(_selectedAccount, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-                  onTap: () => setState(() => _bottomPanel = 'account'),
-                ),
-
-                // Note Row
-                _formRow(
-                  label: 'Note',
-                  widget: TextField(
-                    controller: _noteController,
-                    style: const TextStyle(fontSize: 15),
-                    decoration: const InputDecoration(border: InputBorder.none, hintText: 'Enter note...', hintStyle: TextStyle(color: Colors.white24)),
-                  ),
-                  onTap: () => setState(() => _bottomPanel = 'none'),
-                ),
-
-                const SizedBox(height: 16),
-
-                // Save & Continue Action Buttons
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFFF5252),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        onPressed: () => _saveTransaction(closeOnSave: true),
-                        child: const Text('Save', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Colors.white24),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        onPressed: () => _saveTransaction(closeOnSave: false),
-                        child: const Text('Continue', style: TextStyle(fontSize: 15, color: Colors.white)),
-                      ),
+                      );
+                    }),
+                    TextButton.icon(
+                      icon: const Icon(Icons.add, color: Color(0xFFFF5252)),
+                      label: const Text('+ Add Split Item', style: TextStyle(color: Color(0xFFFF5252), fontWeight: FontWeight.bold)),
+                      onPressed: () => _showAddSplitItemDialog(context),
                     ),
                   ],
-                ),
-              ],
-            ),
-          ),
 
-          // BOTTOM SELECTION PANELS (Keypad, Category, Subcategory, Account)
-          _buildBottomDockedPanel(accounts),
-        ],
+                  if (!_isSplitMode)
+                    _formRow(
+                      label: 'Category',
+                      isActive: _bottomPanel == 'category' || _bottomPanel == 'subcategory',
+                      widget: Row(
+                        children: [
+                          Text(_categoryEmoji, style: const TextStyle(fontSize: 18)),
+                          const SizedBox(width: 8),
+                          Text('$_selectedCategory${_selectedSubcategory.isNotEmpty ? "/$_selectedSubcategory" : ""}',
+                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      onTap: () => setState(() => _bottomPanel = 'category'),
+                    ),
+
+                  // Account Selector Field
+                  _formRow(
+                    label: 'Account',
+                    isActive: _bottomPanel == 'account',
+                    widget: Text(_selectedAccount, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Color(0xFF38BDF8))),
+                    onTap: () => setState(() => _bottomPanel = 'account'),
+                  ),
+
+                  _formRow(
+                    label: 'Note',
+                    widget: TextField(
+                      controller: _noteController,
+                      style: const TextStyle(fontSize: 15),
+                      decoration: const InputDecoration(border: InputBorder.none, hintText: 'Enter note...', hintStyle: TextStyle(color: Colors.white24)),
+                    ),
+                    onTap: () => setState(() => _bottomPanel = 'none'),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFF5252),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          onPressed: () => _saveTransaction(closeOnSave: true),
+                          child: const Text('Save', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Colors.white24),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          onPressed: () => _saveTransaction(closeOnSave: false),
+                          child: const Text('Continue', style: TextStyle(fontSize: 15, color: Colors.white)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            _buildBottomDockedPanel(accounts),
+          ],
+        ),
       ),
     );
   }
@@ -758,7 +1608,7 @@ class _ExpenseEntryScreenState extends ConsumerState<ExpenseEntryScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
-            color: sel ? const Color(0xFF262C38) : Colors.transparent,
+            color: sel ? const Color(0xFF131B2E) : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: sel ? const Color(0xFFFF5252) : Colors.white12),
           ),
@@ -778,6 +1628,7 @@ class _ExpenseEntryScreenState extends ConsumerState<ExpenseEntryScreen> {
           border: Border(bottom: BorderSide(color: isActive ? const Color(0xFFFF5252) : Colors.white10, width: isActive ? 2 : 1)),
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             SizedBox(width: 85, child: Text(label, style: const TextStyle(fontSize: 14, color: Colors.white54))),
             Expanded(child: widget),
@@ -787,69 +1638,43 @@ class _ExpenseEntryScreenState extends ConsumerState<ExpenseEntryScreen> {
     );
   }
 
-  // BOTTOM DOCKED PANEL BUILDER
   Widget _buildBottomDockedPanel(List<Map<String, dynamic>> accounts) {
     if (_bottomPanel == 'none') return const SizedBox.shrink();
 
     return Container(
       decoration: const BoxDecoration(
-        color: Color(0xFF262C38),
-        border: Border(top: BorderSide(color: Color(0xFF333B4A))),
+        color: Color(0xFF131B2E),
+        border: Border(top: BorderSide(color: Color(0xFF1E293B))),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Header of panel
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: const Color(0xFF1E222B),
+            color: const Color(0xFF070B14),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  _bottomPanel == 'keypad'
-                      ? 'Amount'
-                      : _bottomPanel == 'category'
-                          ? 'Category'
-                          : _bottomPanel == 'subcategory'
-                              ? 'Select Sub-category'
-                              : 'Accounts',
+                  _bottomPanel == 'keypad' ? 'Amount' : _bottomPanel == 'category' ? 'Category' : _bottomPanel == 'subcategory' ? 'Select Subcategory' : 'Accounts',
                   style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white70),
                 ),
-                Row(
-                  children: [
-                    if (_bottomPanel == 'category')
-                      IconButton(
-                        icon: const Icon(Icons.add, size: 18, color: Color(0xFFFF5252)),
-                        onPressed: () => _showAddCategoryDialog(context),
-                      ),
-                    IconButton(
-                      icon: const Icon(Icons.close, size: 18, color: Colors.white54),
-                      onPressed: () => setState(() => _bottomPanel = 'none'),
-                    ),
-                  ],
+                IconButton(
+                  icon: const Icon(Icons.close, size: 18, color: Colors.white54),
+                  onPressed: () => setState(() => _bottomPanel = 'none'),
                 ),
               ],
             ),
           ),
-
-          // PANEL 1: NUMBER PAD
           if (_bottomPanel == 'keypad') _buildKeypadGrid(),
-
-          // PANEL 2: CATEGORY GRID (Exact 3-column grid from screenshot)
           if (_bottomPanel == 'category') _buildCategoryGrid(),
-
-          // PANEL 3: SUBCATEGORY CHIPS
           if (_bottomPanel == 'subcategory') _buildSubcategoryPanel(),
-
-          // PANEL 4: ACCOUNTS SELECTOR (3-box bottom row)
           if (_bottomPanel == 'account') _buildAccountGrid(accounts),
         ],
       ),
     );
   }
 
-  // 1. Keypad
   Widget _buildKeypadGrid() {
     return Container(
       padding: const EdgeInsets.all(4),
@@ -889,10 +1714,10 @@ class _ExpenseEntryScreenState extends ConsumerState<ExpenseEntryScreen> {
               alignment: Alignment.center,
               margin: const EdgeInsets.all(2),
               decoration: BoxDecoration(
-                color: isDone ? const Color(0xFFFF5252) : const Color(0xFF1E222B),
+                color: isDone ? const Color(0xFFFF5252) : const Color(0xFF0A0F1D),
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Text(k, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isDone ? Colors.white : Colors.white)),
+              child: Text(k, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
             ),
           ),
         );
@@ -900,7 +1725,6 @@ class _ExpenseEntryScreenState extends ConsumerState<ExpenseEntryScreen> {
     );
   }
 
-  // 2. Category Grid (3 columns matching screenshot)
   Widget _buildCategoryGrid() {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: AppDatabase.instance.getCategories(_type),
@@ -929,7 +1753,7 @@ class _ExpenseEntryScreenState extends ConsumerState<ExpenseEntryScreen> {
                 }
               },
               child: Container(
-                color: const Color(0xFF1E222B),
+                color: const Color(0xFF0A0F1D),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -946,7 +1770,6 @@ class _ExpenseEntryScreenState extends ConsumerState<ExpenseEntryScreen> {
     );
   }
 
-  // 3. Subcategories Panel
   Widget _buildSubcategoryPanel() {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: AppDatabase.instance.getSubcategories(_selectedCategory),
@@ -954,31 +1777,26 @@ class _ExpenseEntryScreenState extends ConsumerState<ExpenseEntryScreen> {
         final subs = snapshot.data ?? [];
         return Container(
           padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  ActionChip(
-                    backgroundColor: const Color(0xFF1E222B),
-                    label: const Text('None (Skip)'),
+              ActionChip(
+                backgroundColor: const Color(0xFF0A0F1D),
+                label: const Text('None (Skip)'),
+                onPressed: () => setState(() {
+                  _selectedSubcategory = '';
+                  _bottomPanel = 'account';
+                }),
+              ),
+              ...subs.map((s) => ActionChip(
+                    backgroundColor: const Color(0xFF0A0F1D),
+                    label: Text(s['name']),
                     onPressed: () => setState(() {
-                      _selectedSubcategory = '';
+                      _selectedSubcategory = s['name'];
                       _bottomPanel = 'account';
                     }),
-                  ),
-                  ...subs.map((s) => ActionChip(
-                        backgroundColor: const Color(0xFF1E222B),
-                        label: Text(s['name']),
-                        onPressed: () => setState(() {
-                          _selectedSubcategory = s['name'];
-                          _bottomPanel = 'account';
-                        }),
-                      )),
-                ],
-              ),
+                  )),
             ],
           ),
         );
@@ -986,10 +1804,9 @@ class _ExpenseEntryScreenState extends ConsumerState<ExpenseEntryScreen> {
     );
   }
 
-  // 4. Accounts Grid
   Widget _buildAccountGrid(List<Map<String, dynamic>> accounts) {
     return Container(
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(8),
       child: Row(
         children: accounts.map((a) {
           final sel = _selectedAccount == a['name'];
@@ -1005,12 +1822,13 @@ class _ExpenseEntryScreenState extends ConsumerState<ExpenseEntryScreen> {
               child: Container(
                 height: 52,
                 alignment: Alignment.center,
-                margin: const EdgeInsets.all(2),
+                margin: const EdgeInsets.symmetric(horizontal: 4),
                 decoration: BoxDecoration(
-                  color: sel ? const Color(0xFF333B4A) : const Color(0xFF1E222B),
-                  border: Border.all(color: sel ? const Color(0xFFFF5252) : Colors.transparent),
+                  color: sel ? const Color(0xFF1E293B) : const Color(0xFF0A0F1D),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: sel ? const Color(0xFFFF5252) : Colors.white12),
                 ),
-                child: Text(a['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                child: Text(a['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white)),
               ),
             ),
           );
@@ -1019,44 +1837,42 @@ class _ExpenseEntryScreenState extends ConsumerState<ExpenseEntryScreen> {
     );
   }
 
-  // Modal to Add Split Items for Amazon Orders
   void _showAddSplitItemDialog(BuildContext context) {
     final amtCtrl = TextEditingController();
     final noteCtrl = TextEditingController();
-    String cat = 'Household';
-    String sub = 'Groceries';
-    String emoji = '🪑';
+    String cat = 'Food';
+    String sub = 'Lunch';
+    String emoji = '🍜';
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: const Color(0xFF1E222B),
-          title: const Text('Add Order Item Split'),
+          backgroundColor: const Color(0xFF131B2E),
+          title: const Text('Add Split Line Item'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(controller: amtCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Item Amount (₹)')),
+              TextField(controller: amtCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Amount (₹)')),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
                 value: cat,
-                dropdownColor: const Color(0xFF1E222B),
+                dropdownColor: const Color(0xFF131B2E),
                 items: const [
                   DropdownMenuItem(value: 'Food', child: Text('🍜 Food')),
                   DropdownMenuItem(value: 'Household', child: Text('🪑 Household')),
                   DropdownMenuItem(value: 'Apparel', child: Text('🧥 Apparel')),
-                  DropdownMenuItem(value: 'Beauty', child: Text('💄 Beauty')),
-                  DropdownMenuItem(value: 'Health', child: Text('🧘 Health')),
                   DropdownMenuItem(value: 'Education', child: Text('📙 Education')),
+                  DropdownMenuItem(value: 'Transport', child: Text('🚕 Transport')),
                   DropdownMenuItem(value: 'Other', child: Text('📦 Other')),
                 ],
                 onChanged: (v) => setDialogState(() {
                   cat = v!;
-                  emoji = v == 'Food' ? '🍜' : v == 'Household' ? '🪑' : v == 'Apparel' ? '🧥' : v == 'Beauty' ? '💄' : v == 'Health' ? '🧘' : v == 'Education' ? '📙' : '📦';
+                  emoji = v == 'Food' ? '🍜' : v == 'Household' ? '🪑' : v == 'Apparel' ? '🧥' : v == 'Education' ? '📙' : v == 'Transport' ? '🚕' : '📦';
                 }),
               ),
               const SizedBox(height: 8),
-              TextField(controller: noteCtrl, decoration: const InputDecoration(labelText: 'Item Name / Note (e.g. Shampoo)')),
+              TextField(controller: noteCtrl, decoration: const InputDecoration(labelText: 'Item Note')),
             ],
           ),
           actions: [
@@ -1102,6 +1918,7 @@ class _ExpenseEntryScreenState extends ConsumerState<ExpenseEntryScreen> {
           'to_account': '',
           'category': item['category'],
           'subcategory': item['subcategory'],
+          'merchant': _merchantController.text,
           'note': item['note'].toString().isNotEmpty ? item['note'] : _noteController.text,
         });
       }
@@ -1114,6 +1931,7 @@ class _ExpenseEntryScreenState extends ConsumerState<ExpenseEntryScreen> {
         'to_account': '',
         'category': _selectedCategory,
         'subcategory': _selectedSubcategory,
+        'merchant': _merchantController.text,
         'note': _noteController.text,
       });
     }
@@ -1128,195 +1946,10 @@ class _ExpenseEntryScreenState extends ConsumerState<ExpenseEntryScreen> {
       setState(() {
         _totalAmountStr = '';
         _noteController.clear();
+        _merchantController.clear();
         _splitItems.clear();
       });
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Transaction saved! Ready for next.')));
     }
-  }
-
-  void _showAddCategoryDialog(BuildContext context) {
-    final nameCtrl = TextEditingController();
-    final emojiCtrl = TextEditingController(text: '📦');
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E222B),
-        title: const Text('Add Custom Category'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: emojiCtrl, decoration: const InputDecoration(labelText: 'Emoji (e.g. 📱)')),
-            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Category Name')),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () async {
-              if (nameCtrl.text.isNotEmpty) {
-                await AppDatabase.instance.addCategory(nameCtrl.text, _type, emojiCtrl.text, 0.0);
-                ref.read(dataRefreshProvider.notifier).state++;
-                Navigator.pop(ctx);
-                setState(() {});
-              }
-            },
-            child: const Text('Add'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ==========================================
-// 6. WEALTH & ACCOUNTS TAB
-// ==========================================
-class AccountsWealthScreen extends ConsumerWidget {
-  const AccountsWealthScreen({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final accounts = ref.watch(accountsStream).value ?? [];
-    final investments = ref.watch(investmentsStream).value ?? [];
-    final loans = ref.watch(loansStream).value ?? [];
-
-    return DefaultTabController(
-      length: 3,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Accounts & Portfolios', style: TextStyle(fontWeight: FontWeight.bold)),
-          backgroundColor: const Color(0xFF1E222B),
-          bottom: const TabBar(
-            indicatorColor: Color(0xFFFF5252),
-            tabs: [
-              Tab(text: 'Accounts'),
-              Tab(text: 'Investments'),
-              Tab(text: 'Loans'),
-            ],
-          ),
-        ),
-        body: TabBarView(
-          children: [
-            ListView(
-              padding: const EdgeInsets.all(16),
-              children: accounts.map((a) => Card(
-                color: const Color(0xFF262C38),
-                child: ListTile(
-                  title: Text(a['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text(a['type'].toString().toUpperCase()),
-                  trailing: Text(inr.format(a['balance']), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                ),
-              )).toList(),
-            ),
-            ListView(
-              padding: const EdgeInsets.all(16),
-              children: investments.map((inv) => Card(
-                color: const Color(0xFF262C38),
-                child: ListTile(
-                  title: Text(inv['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text('Invested: ${inr.format(inv['invested_amount'])}'),
-                  trailing: Text(inr.format(inv['current_value']), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF10B981))),
-                ),
-              )).toList(),
-            ),
-            ListView(
-              padding: const EdgeInsets.all(16),
-              children: loans.map((l) => Card(
-                color: const Color(0xFF262C38),
-                child: ListTile(
-                  title: Text(l['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text('EMI: ${inr.format(l['emi_amount'])}'),
-                  trailing: Text(inr.format(l['remaining_balance']), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFFFF5252))),
-                ),
-              )).toList(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ==========================================
-// 7. STATS & REPORTS TAB
-// ==========================================
-class ReportsScreen extends ConsumerWidget {
-  const ReportsScreen({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final txs = ref.watch(transactionsStream).value ?? [];
-    Map<String, double> catTotals = {};
-
-    for (var t in txs) {
-      if (t['type'] == 'expense') {
-        final c = t['category'] ?? 'Other';
-        catTotals[c] = (catTotals[c] ?? 0) + (t['amount'] as num).toDouble();
-      }
-    }
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('Analytics & Stats'), backgroundColor: const Color(0xFF1E222B)),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          const Text('Expense Distribution', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
-          ...catTotals.entries.map((e) => Card(
-            color: const Color(0xFF262C38),
-            child: ListTile(
-              title: Text(e.key),
-              trailing: Text(inr.format(e.value), style: const TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          )),
-        ],
-      ),
-    );
-  }
-}
-
-// ==========================================
-// 8. SETTINGS & CSV BACKUP TAB
-// ==========================================
-class SettingsScreen extends ConsumerWidget {
-  const SettingsScreen({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Settings & Data'), backgroundColor: const Color(0xFF1E222B)),
-      body: ListView(
-        children: [
-          const ListTile(leading: Icon(Icons.currency_rupee), title: Text('Currency'), subtitle: Text('₹ INR (Default)')),
-          ListTile(
-            leading: const Icon(Icons.file_download_outlined, color: Color(0xFF10B981)),
-            title: const Text('Export CSV Backup'),
-            onTap: () async {
-              final txs = await AppDatabase.instance.getTransactions();
-              List<List<dynamic>> rows = [
-                ['ID', 'Type', 'Amount', 'Date', 'Account', 'Category', 'Subcategory', 'Note']
-              ];
-              for (var t in txs) {
-                rows.add([t['id'], t['type'], t['amount'], t['date'], t['account_name'], t['category'], t['subcategory'], t['note']]);
-              }
-              final csvData = const ListToCsvConverter().convert(rows);
-              final dir = await getApplicationDocumentsDirectory();
-              final file = File('${dir.path}/sagars_tracker_backup.csv');
-              await file.writeAsString(csvData);
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Saved: ${file.path}')));
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.delete_forever, color: Color(0xFFFF5252)),
-            title: const Text('Clear All Data', style: TextStyle(color: Color(0xFFFF5252))),
-            onTap: () async {
-              await AppDatabase.instance.clearAll();
-              ref.read(dataRefreshProvider.notifier).state++;
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('All data cleared.')));
-            },
-          ),
-        ],
-      ),
-    );
   }
 }
