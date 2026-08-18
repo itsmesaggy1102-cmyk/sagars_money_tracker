@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:sqflite/sqflite.dart';
@@ -11,7 +10,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:csv/csv.dart';
 
 // ==========================================
-// 1. DATABASE LAYER (Offline SQLite v6)
+// 1. DATABASE LAYER (Offline SQLite v7)
 // ==========================================
 class AppDatabase {
   static final AppDatabase instance = AppDatabase._init();
@@ -20,7 +19,7 @@ class AppDatabase {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('sagars_money_tracker_v6.db');
+    _database = await _initDB('sagars_money_tracker_v7.db');
     return _database!;
   }
 
@@ -112,11 +111,11 @@ class AppDatabase {
       {'name': 'Pets', 'emoji': '🐶', 'subs': []},
       {'name': 'Transport', 'emoji': '🚕', 'subs': ['Bus', 'Subway', 'Taxi', 'Car']},
       {'name': 'Culture', 'emoji': '🖼️', 'subs': ['Books', 'Movie', 'Music', 'Apps']},
-      {'name': 'Household', 'emoji': '🪑', 'subs': ['Appliances', 'Furniture', 'Kitchen', 'Toiletries', 'Chandlery']},
-      {'name': 'Apparel', 'emoji': '🧥', 'subs': ['Clothing', 'Fashion', 'Shoes', 'Laundry']},
+      {'name': 'Household', 'emoji': '🪑', 'subs': ['Appliances', 'Furniture', 'Kitchen', 'Toiletries']},
+      {'name': 'Apparel', 'emoji': '🧥', 'subs': ['Clothing', 'Fashion', 'Shoes']},
       {'name': 'Beauty', 'emoji': '💄', 'subs': ['Cosmetics', 'Makeup', 'Accessories']},
       {'name': 'Health', 'emoji': '🧘', 'subs': ['Health', 'Yoga', 'Hospital', 'Medicine']},
-      {'name': 'Education', 'emoji': '📙', 'subs': ['Schooling', 'Textbooks', 'School supplies', 'Academy']},
+      {'name': 'Education', 'emoji': '📙', 'subs': ['Schooling', 'Textbooks', 'Academy']},
       {'name': 'Gift', 'emoji': '🎁', 'subs': []},
       {'name': 'Other', 'emoji': '📦', 'subs': []},
     ];
@@ -158,9 +157,9 @@ class AppDatabase {
       }
     }
 
-    // Investments & Loans Defaults
+    // Default Investments & Loans
     await db.insert('investments', {
-      'name': 'Flexi Cap Equity Fund',
+      'name': 'Flexi Cap Fund',
       'category': 'Mutual Fund',
       'invested_amount': 75000.0,
       'current_value': 92400.0,
@@ -194,7 +193,7 @@ class AppDatabase {
       'account_name': 'Accounts',
       'category': 'Social Life',
       'subcategory': 'Friend',
-      'merchant': 'Trip Organizers',
+      'merchant': 'Trip',
       'note': 'Alumni weekend',
     });
     await db.insert('transactions', {
@@ -214,12 +213,11 @@ class AppDatabase {
       'account_name': 'Accounts',
       'category': 'Salary',
       'subcategory': '',
-      'merchant': 'Company Payroll',
-      'note': 'Consulting retainer',
+      'merchant': 'Payroll',
+      'note': 'Monthly income',
     });
   }
 
-  // Database Queries
   Future<List<Map<String, dynamic>>> getAccounts() async => (await database).query('accounts');
   Future<List<Map<String, dynamic>>> getCategories(String type) async =>
       (await database).query('categories', where: 'type = ?', orderBy: 'sort_order ASC', whereArgs: [type]);
@@ -229,34 +227,6 @@ class AppDatabase {
   Future<List<Map<String, dynamic>>> getLoans() async => (await database).query('loans');
   Future<List<Map<String, dynamic>>> getTransactions() async =>
       (await database).query('transactions', orderBy: 'date DESC');
-
-  Future<void> addAccount(String name, String type, double balance, int dueDay) async {
-    final db = await database;
-    await db.insert('accounts', {'name': name, 'type': type, 'balance': balance, 'due_day': dueDay});
-  }
-
-  Future<void> addInvestment(String name, String category, double invested, double current, double sipAmt, int sipDay) async {
-    final db = await database;
-    await db.insert('investments', {
-      'name': name,
-      'category': category,
-      'invested_amount': invested,
-      'current_value': current,
-      'sip_amount': sipAmt,
-      'sip_day': sipDay,
-    });
-  }
-
-  Future<void> addLoan(String name, double principal, double balance, double emi, double rate) async {
-    final db = await database;
-    await db.insert('loans', {
-      'name': name,
-      'principal': principal,
-      'remaining_balance': balance,
-      'emi_amount': emi,
-      'interest_rate': rate,
-    });
-  }
 
   Future<void> addCategory(String name, String type, String emoji) async {
     final db = await database;
@@ -327,38 +297,17 @@ class AppDatabase {
   }
 }
 
-// ==========================================
-// 2. STATE PROVIDERS & HELPERS
-// ==========================================
-final dataRefreshProvider = StateProvider<int>((ref) => 0);
-final selectedMonthProvider = StateProvider<DateTime>((ref) => DateTime(2026, 8, 1));
-final filterAccountsProvider = StateProvider<Set<String>>((ref) => {'Cash', 'Accounts', 'Card'});
-
-final accountsStream = FutureProvider<List<Map<String, dynamic>>>((ref) {
-  ref.watch(dataRefreshProvider);
-  return AppDatabase.instance.getAccounts();
-});
-final investmentsStream = FutureProvider<List<Map<String, dynamic>>>((ref) {
-  ref.watch(dataRefreshProvider);
-  return AppDatabase.instance.getInvestments();
-});
-final loansStream = FutureProvider<List<Map<String, dynamic>>>((ref) {
-  ref.watch(dataRefreshProvider);
-  return AppDatabase.instance.getLoans();
-});
-final transactionsStream = FutureProvider<List<Map<String, dynamic>>>((ref) {
-  ref.watch(dataRefreshProvider);
-  return AppDatabase.instance.getTransactions();
-});
-
+// Global Formatter & Filter State
 final inr = NumberFormat.currency(symbol: '₹', locale: 'en_IN', decimalDigits: 2);
+DateTime globalSelectedMonth = DateTime(2026, 8, 1);
+Set<String> globalFilterAccounts = {'Cash', 'Accounts', 'Card'};
 
 // ==========================================
-// 3. MAIN ROOT ENTRY & MIDNIGHT THEME
+// 2. MAIN APP ENTRY
 // ==========================================
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const ProviderScope(child: SagarsMoneyTrackerApp()));
+  runApp(const SagarsMoneyTrackerApp());
 }
 
 class SagarsMoneyTrackerApp extends StatelessWidget {
@@ -373,49 +322,54 @@ class SagarsMoneyTrackerApp extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFF0A0F1D), // Midnight Sapphire
         textTheme: GoogleFonts.dmSansTextTheme(ThemeData.dark().textTheme),
         colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF00E599), // Electric Mint
-          secondary: Color(0xFF38BDF8), // Cyan Blue
-          error: Color(0xFFFF5252), // Coral Red
-          surface: Color(0xFF131B2E), // Card Surface
+          primary: Color(0xFF00E599),
+          secondary: Color(0xFF38BDF8),
+          error: Color(0xFFFF5252),
+          surface: Color(0xFF131B2E),
         ),
       ),
-      home: const RootNavigation(),
+      home: const RootNavigationScreen(),
     );
   }
 }
 
 // ==========================================
-// 4. ROOT NAVIGATION & TABS
+// 3. ROOT SCREEN CONTROLLER
 // ==========================================
-class RootNavigation extends StatefulWidget {
-  const RootNavigation({super.key});
+class RootNavigationScreen extends StatefulWidget {
+  const RootNavigationScreen({super.key});
 
   @override
-  State<RootNavigation> createState() => _RootNavigationState();
+  State<RootNavigationScreen> createState() => _RootNavigationScreenState();
 }
 
-class _RootNavigationState extends State<RootNavigation> {
+class _RootNavigationScreenState extends State<RootNavigationScreen> {
   int _tab = 0;
 
-  final List<Widget> _pages = const [
-    HomeScreenLayout(),
-    StatsScreen(),
-    AccountsWealthScreen(),
-    MoreOptionsScreen(),
-  ];
+  void _refreshAll() {
+    setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
+    final List<Widget> pages = [
+      HomeScreenLayout(onRefresh: _refreshAll),
+      StatsScreen(onRefresh: _refreshAll),
+      AccountsWealthScreen(onRefresh: _refreshAll),
+      MoreOptionsScreen(onRefresh: _refreshAll),
+    ];
+
     return Scaffold(
-      body: IndexedStack(index: _tab, children: _pages),
+      body: IndexedStack(index: _tab, children: pages),
       floatingActionButton: FloatingActionButton(
-        elevation: 4,
+        elevation: 6,
         backgroundColor: const Color(0xFFFF5252),
         shape: const CircleBorder(),
         child: const Icon(Icons.add, size: 32, color: Colors.white),
-        onPressed: () {
+        onPressed: () async {
           HapticFeedback.mediumImpact();
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpenseEntryScreen()));
+          await Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpenseEntryScreen()));
+          _refreshAll();
         },
       ),
       bottomNavigationBar: BottomNavigationBar(
@@ -437,246 +391,260 @@ class _RootNavigationState extends State<RootNavigation> {
 }
 
 // ==========================================
-// 5. HOME TAB (Daily, Calendar, Month, Adjuster, Pay CC Alert)
+// 4. HOME TAB (Daily, Calendar, Month, Adjuster)
 // ==========================================
-class HomeScreenLayout extends ConsumerStatefulWidget {
-  const HomeScreenLayout({super.key});
+class HomeScreenLayout extends StatefulWidget {
+  final VoidCallback onRefresh;
+  const HomeScreenLayout({super.key, required this.onRefresh});
 
   @override
-  ConsumerState<HomeScreenLayout> createState() => _HomeScreenLayoutState();
+  State<HomeScreenLayout> createState() => _HomeScreenLayoutState();
 }
 
-class _HomeScreenLayoutState extends ConsumerState<HomeScreenLayout> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _HomeScreenLayoutState extends State<HomeScreenLayout> {
   bool _onlyBookmarked = false;
 
   @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 5, vsync: this);
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final currentMonth = ref.watch(selectedMonthProvider);
-    final filterAccounts = ref.watch(filterAccountsProvider);
-    final txs = ref.watch(transactionsStream).value ?? [];
-    final accounts = ref.watch(accountsStream).value ?? [];
-
-    final filteredTxs = txs.where((t) {
-      final d = DateTime.tryParse(t['date']) ?? DateTime.now();
-      final matchesMonth = d.month == currentMonth.month && d.year == currentMonth.year;
-      final matchesAcc = filterAccounts.contains(t['account_name']);
-      final matchesStar = !_onlyBookmarked || (t['is_bookmarked'] == 1);
-      return matchesMonth && matchesAcc && matchesStar;
-    }).toList();
-
-    double totalInc = 0;
-    double totalExp = 0;
-    for (var t in filteredTxs) {
-      if (t['type'] == 'income') totalInc += (t['amount'] as num).toDouble();
-      if (t['type'] == 'expense') totalExp += (t['amount'] as num).toDouble();
-    }
-
-    // CC Due Alerts & 1-Tap Bill Settlement
-    final now = DateTime.now();
-    List<Map<String, dynamic>> ccAlerts = [];
-    for (var a in accounts) {
-      if (a['type'] == 'credit_card') {
-        final bal = (a['balance'] as num).toDouble();
-        final due = a['due_day'] as int? ?? 0;
-        if (due > 0 && bal > 0) {
-          ccAlerts.add({...a, 'days': due - now.day});
-        }
-      }
-    }
-
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF0A0F1D),
-        elevation: 0,
-        title: Row(
-          children: [
+    return DefaultTabController(
+      length: 5,
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF0A0F1D),
+          elevation: 0,
+          title: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left, color: Colors.white70),
+                onPressed: () {
+                  setState(() {
+                    globalSelectedMonth = DateTime(globalSelectedMonth.year, globalSelectedMonth.month - 1, 1);
+                  });
+                  widget.onRefresh();
+                },
+              ),
+              Text(DateFormat('MMM yyyy').format(globalSelectedMonth), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              IconButton(
+                icon: const Icon(Icons.chevron_right, color: Colors.white70),
+                onPressed: () {
+                  setState(() {
+                    globalSelectedMonth = DateTime(globalSelectedMonth.year, globalSelectedMonth.month + 1, 1);
+                  });
+                  widget.onRefresh();
+                },
+              ),
+            ],
+          ),
+          actions: [
             IconButton(
-              icon: const Icon(Icons.chevron_left, color: Colors.white70),
-              onPressed: () {
-                ref.read(selectedMonthProvider.notifier).state =
-                    DateTime(currentMonth.year, currentMonth.month - 1, 1);
+              icon: Icon(_onlyBookmarked ? Icons.star : Icons.star_border, color: _onlyBookmarked ? Colors.amber : Colors.white70),
+              onPressed: () => setState(() => _onlyBookmarked = !_onlyBookmarked),
+            ),
+            IconButton(
+              icon: const Icon(Icons.search, color: Colors.white70),
+              onPressed: () async {
+                final txs = await AppDatabase.instance.getTransactions();
+                showSearch(context: context, delegate: TransactionSearchDelegate(txs: txs));
               },
             ),
-            Text(DateFormat('MMM yyyy').format(currentMonth), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             IconButton(
-              icon: const Icon(Icons.chevron_right, color: Colors.white70),
-              onPressed: () {
-                ref.read(selectedMonthProvider.notifier).state =
-                    DateTime(currentMonth.year, currentMonth.month + 1, 1);
+              icon: const Icon(Icons.tune, color: Colors.white70),
+              onPressed: () async {
+                await Navigator.push(context, MaterialPageRoute(builder: (_) => const AdjusterFilterScreen()));
+                setState(() {});
+                widget.onRefresh();
               },
             ),
           ],
+          bottom: const TabBar(
+            indicatorColor: Color(0xFFFF5252),
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white54,
+            tabs: [
+              Tab(text: 'Daily'),
+              Tab(text: 'Calendar'),
+              Tab(text: 'Monthly'),
+              Tab(text: 'Total'),
+              Tab(text: 'Note'),
+            ],
+          ),
         ),
-        actions: [
-          IconButton(
-            icon: Icon(_onlyBookmarked ? Icons.star : Icons.star_border, color: _onlyBookmarked ? Colors.amber : Colors.white70),
-            onPressed: () => setState(() => _onlyBookmarked = !_onlyBookmarked),
-          ),
-          IconButton(
-            icon: const Icon(Icons.search, color: Colors.white70),
-            onPressed: () => showSearch(context: context, delegate: TransactionSearchDelegate(txs: txs)),
-          ),
-          IconButton(
-            icon: const Icon(Icons.tune, color: Colors.white70),
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdjusterFilterScreen())),
-          ),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: const Color(0xFFFF5252),
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white54,
-          tabs: const [
-            Tab(text: 'Daily'),
-            Tab(text: 'Calendar'),
-            Tab(text: 'Monthly'),
-            Tab(text: 'Total'),
-            Tab(text: 'Note'),
-          ],
-        ),
-      ),
-      body: Column(
-        children: [
-          // Credit Card Payment Alert Banner
-          if (ccAlerts.isNotEmpty)
-            ...ccAlerts.map((cc) {
-              return Container(
-                margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFF5252).withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFFF5252).withOpacity(0.4)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.warning_amber_rounded, color: Color(0xFFFF5252), size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        '${cc['name']} Due: ${inr.format(cc['balance'])} (Day ${cc['due_day']})',
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
-                      ),
-                    ),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFFF5252),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        minimumSize: Size.zero,
-                      ),
-                      onPressed: () => _payCreditCardBill(context, cc, accounts),
-                      child: const Text('Pay Bill', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
-                    ),
-                  ],
-                ),
-              );
-            }),
+        body: FutureBuilder<List<dynamic>>(
+          future: Future.wait([
+            AppDatabase.instance.getTransactions(),
+            AppDatabase.instance.getAccounts(),
+          ]),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator(color: Color(0xFFFF5252)));
+            }
 
-          // Header Stat Ribbon
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-            margin: const EdgeInsets.only(top: 8),
-            color: const Color(0xFF070B14),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            final List<Map<String, dynamic>> allTxs = snapshot.data![0];
+            final List<Map<String, dynamic>> accounts = snapshot.data![1];
+
+            final filteredTxs = allTxs.where((t) {
+              final d = DateTime.tryParse(t['date']) ?? DateTime.now();
+              final matchesMonth = d.month == globalSelectedMonth.month && d.year == globalSelectedMonth.year;
+              final matchesAcc = globalFilterAccounts.contains(t['account_name']);
+              final matchesStar = !_onlyBookmarked || (t['is_bookmarked'] == 1);
+              return matchesMonth && matchesAcc && matchesStar;
+            }).toList();
+
+            double totalInc = 0;
+            double totalExp = 0;
+            for (var t in filteredTxs) {
+              if (t['type'] == 'income') totalInc += (t['amount'] as num).toDouble();
+              if (t['type'] == 'expense') totalExp += (t['amount'] as num).toDouble();
+            }
+
+            // CC Due Alerts
+            final now = DateTime.now();
+            List<Map<String, dynamic>> ccAlerts = [];
+            for (var a in accounts) {
+              if (a['type'] == 'credit_card') {
+                final bal = (a['balance'] as num).toDouble();
+                final due = a['due_day'] as int? ?? 0;
+                if (due > 0 && bal > 0) {
+                  ccAlerts.add({...a, 'days': due - now.day});
+                }
+              }
+            }
+
+            return Column(
               children: [
-                _topStatColumn('Income', inr.format(totalInc), const Color(0xFF00E599)),
-                _topStatColumn('Expenses', inr.format(totalExp), const Color(0xFFFF5252)),
-                _topStatColumn('Total', inr.format(totalInc - totalExp), Colors.white),
-              ],
-            ),
-          ),
-
-          // Transaction Feed
-          Expanded(
-            child: filteredTxs.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        Icon(Icons.pets, size: 70, color: Colors.white24),
-                        SizedBox(height: 12),
-                        Text('No data available.', style: TextStyle(color: Colors.white38, fontSize: 15)),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
-                    itemCount: filteredTxs.length,
-                    itemBuilder: (ctx, i) {
-                      final t = filteredTxs[i];
-                      return Dismissible(
-                        key: Key(t['id'].toString()),
-                        direction: DismissDirection.endToStart,
-                        background: Container(
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: 20),
-                          color: const Color(0xFFFF5252),
-                          child: const Icon(Icons.delete, color: Colors.white),
-                        ),
-                        onDismissed: (_) async {
-                          await AppDatabase.instance.deleteTransaction(t['id']);
-                          ref.read(dataRefreshProvider.notifier).state++;
-                        },
-                        child: Card(
-                          color: const Color(0xFF131B2E),
-                          margin: const EdgeInsets.only(bottom: 8),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: const Color(0xFF0A0F1D),
-                              child: Text(t['category'] != null && t['category'].toString().isNotEmpty ? t['category'].substring(0, 1) : '₹'),
-                            ),
-                            title: Row(
-                              children: [
-                                Text(t['category'] ?? t['to_account'] ?? 'Transfer', style: const TextStyle(fontWeight: FontWeight.bold)),
-                                if (t['merchant'] != null && t['merchant'].toString().isNotEmpty) ...[
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(4)),
-                                    child: Text(t['merchant'], style: const TextStyle(fontSize: 10, color: Color(0xFF38BDF8), fontWeight: FontWeight.bold)),
-                                  ),
-                                ],
-                              ],
-                            ),
-                            subtitle: Text('${t['subcategory'] != null && t['subcategory'].isNotEmpty ? "${t['subcategory']} • " : ""}${t['account_name']}${t['note'] != null && t['note'].isNotEmpty ? " • ${t['note']}" : ""}',
-                                style: const TextStyle(fontSize: 12, color: Colors.white54)),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  '${t['type'] == 'income' ? "+" : "-"} ${inr.format(t['amount'])}',
-                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: t['type'] == 'income' ? const Color(0xFF00E599) : Colors.white),
-                                ),
-                                IconButton(
-                                  icon: Icon(t['is_bookmarked'] == 1 ? Icons.star : Icons.star_border, size: 18, color: t['is_bookmarked'] == 1 ? Colors.amber : Colors.white24),
-                                  onPressed: () async {
-                                    await AppDatabase.instance.toggleBookmark(t['id'], t['is_bookmarked'] ?? 0);
-                                    ref.read(dataRefreshProvider.notifier).state++;
-                                  },
-                                ),
-                              ],
+                if (ccAlerts.isNotEmpty)
+                  ...ccAlerts.map((cc) {
+                    return Container(
+                      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF5252).withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFFF5252).withOpacity(0.4)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.warning_amber_rounded, color: Color(0xFFFF5252), size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              '${cc['name']} Due: ${inr.format(cc['balance'])} (Day ${cc['due_day']})',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
                             ),
                           ),
-                        ),
-                      );
-                    },
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFFF5252),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              minimumSize: Size.zero,
+                            ),
+                            onPressed: () => _payCreditCardBill(context, cc),
+                            child: const Text('Pay Bill', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+                  margin: const EdgeInsets.only(top: 8),
+                  color: const Color(0xFF070B14),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _topStatColumn('Income', inr.format(totalInc), const Color(0xFF00E599)),
+                      _topStatColumn('Expenses', inr.format(totalExp), const Color(0xFFFF5252)),
+                      _topStatColumn('Total', inr.format(totalInc - totalExp), Colors.white),
+                    ],
                   ),
-          ),
-        ],
+                ),
+                Expanded(
+                  child: filteredTxs.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: const [
+                              Icon(Icons.pets, size: 70, color: Colors.white24),
+                              SizedBox(height: 12),
+                              Text('No data available.', style: TextStyle(color: Colors.white38, fontSize: 15)),
+                            ],
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
+                          itemCount: filteredTxs.length,
+                          itemBuilder: (ctx, i) {
+                            final t = filteredTxs[i];
+                            return Dismissible(
+                              key: Key(t['id'].toString()),
+                              direction: DismissDirection.endToStart,
+                              background: Container(
+                                alignment: Alignment.centerRight,
+                                padding: const EdgeInsets.only(right: 20),
+                                color: const Color(0xFFFF5252),
+                                child: const Icon(Icons.delete, color: Colors.white),
+                              ),
+                              onDismissed: (_) async {
+                                await AppDatabase.instance.deleteTransaction(t['id']);
+                                setState(() {});
+                                widget.onRefresh();
+                              },
+                              child: Card(
+                                color: const Color(0xFF131B2E),
+                                margin: const EdgeInsets.only(bottom: 8),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                child: ListTile(
+                                  leading: CircleAvatar(
+                                    backgroundColor: const Color(0xFF0A0F1D),
+                                    child: Text(t['category'] != null && t['category'].toString().isNotEmpty ? t['category'].substring(0, 1) : '₹'),
+                                  ),
+                                  title: Row(
+                                    children: [
+                                      Text(t['category'] ?? t['to_account'] ?? 'Transfer', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                      if (t['merchant'] != null && t['merchant'].toString().isNotEmpty) ...[
+                                        const SizedBox(width: 8),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(4)),
+                                          child: Text(t['merchant'], style: const TextStyle(fontSize: 10, color: Color(0xFF38BDF8), fontWeight: FontWeight.bold)),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  subtitle: Text('${t['subcategory'] != null && t['subcategory'].isNotEmpty ? "${t['subcategory']} • " : ""}${t['account_name']}${t['note'] != null && t['note'].isNotEmpty ? " • ${t['note']}" : ""}',
+                                      style: const TextStyle(fontSize: 12, color: Colors.white54)),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        '${t['type'] == 'income' ? "+" : "-"} ${inr.format(t['amount'])}',
+                                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: t['type'] == 'income' ? const Color(0xFF00E599) : Colors.white),
+                                      ),
+                                      IconButton(
+                                        icon: Icon(t['is_bookmarked'] == 1 ? Icons.star : Icons.star_border, size: 18, color: t['is_bookmarked'] == 1 ? Colors.amber : Colors.white24),
+                                        onPressed: () async {
+                                          await AppDatabase.instance.toggleBookmark(t['id'], t['is_bookmarked'] ?? 0);
+                                          setState(() {});
+                                          widget.onRefresh();
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
 
-  void _payCreditCardBill(BuildContext context, Map<String, dynamic> cc, List<Map<String, dynamic>> accounts) {
+  void _payCreditCardBill(BuildContext context, Map<String, dynamic> cc) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -696,11 +664,12 @@ class _HomeScreenLayoutState extends ConsumerState<HomeScreenLayout> with Single
                   'account_name': 'Accounts',
                   'to_account': cc['name'],
                   'merchant': 'Bill Payment',
-                  'note': 'Full CC Statement Settlement',
+                  'note': 'Full CC Settlement',
                 }
               ]);
-              ref.read(dataRefreshProvider.notifier).state++;
               Navigator.pop(ctx);
+              setState(() {});
+              widget.onRefresh();
             },
             child: const Text('Pay Now', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
           ),
@@ -721,118 +690,122 @@ class _HomeScreenLayoutState extends ConsumerState<HomeScreenLayout> with Single
 }
 
 // ==========================================
-// 6. ADJUSTER FILTER SCREEN
+// 5. ADJUSTER / FILTER SCREEN
 // ==========================================
-class AdjusterFilterScreen extends ConsumerStatefulWidget {
+class AdjusterFilterScreen extends StatefulWidget {
   const AdjusterFilterScreen({super.key});
 
   @override
-  ConsumerState<AdjusterFilterScreen> createState() => _AdjusterFilterScreenState();
+  State<AdjusterFilterScreen> createState() => _AdjusterFilterScreenState();
 }
 
-class _AdjusterFilterScreenState extends ConsumerState<AdjusterFilterScreen> {
+class _AdjusterFilterScreenState extends State<AdjusterFilterScreen> {
   String _activeTab = 'ACCOUNT';
 
   @override
   Widget build(BuildContext context) {
-    final currentMonth = ref.watch(selectedMonthProvider);
-    final selectedAccs = ref.watch(filterAccountsProvider);
-    final txs = ref.watch(transactionsStream).value ?? [];
-
-    final monthTxs = txs.where((t) {
-      final d = DateTime.tryParse(t['date']) ?? DateTime.now();
-      return d.month == currentMonth.month && d.year == currentMonth.year;
-    }).toList();
-
-    double totalMonthExp = 0;
-    double totalMonthInc = 0;
-    for (var t in monthTxs) {
-      if (t['type'] == 'expense') totalMonthExp += (t['amount'] as num).toDouble();
-      if (t['type'] == 'income') totalMonthInc += (t['amount'] as num).toDouble();
-    }
-
-    double filterExp = 0;
-    double filterInc = 0;
-    for (var t in monthTxs) {
-      if (selectedAccs.contains(t['account_name'])) {
-        if (t['type'] == 'expense') filterExp += (t['amount'] as num).toDouble();
-        if (t['type'] == 'income') filterInc += (t['amount'] as num).toDouble();
-      }
-    }
-
-    int expPct = totalMonthExp > 0 ? ((filterExp / totalMonthExp) * 100).round() : 0;
-    int incPct = totalMonthInc > 0 ? ((filterInc / totalMonthInc) * 100).round() : 0;
-
     return Scaffold(
       backgroundColor: const Color(0xFF0A0F1D),
       appBar: AppBar(
         backgroundColor: const Color(0xFF0A0F1D),
         elevation: 0,
         leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
-        title: Text(DateFormat('MMM yyyy').format(currentMonth), style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(DateFormat('MMM yyyy').format(globalSelectedMonth), style: const TextStyle(fontWeight: FontWeight.bold)),
         actions: [IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context))],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(selectedAccs.length == 3 ? 'All Accounts' : selectedAccs.join(', '),
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white70)),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF5252)),
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Filter', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: AppDatabase.instance.getTransactions(),
+        builder: (context, snapshot) {
+          final txs = snapshot.data ?? [];
+          final monthTxs = txs.where((t) {
+            final d = DateTime.tryParse(t['date']) ?? DateTime.now();
+            return d.month == globalSelectedMonth.month && d.year == globalSelectedMonth.year;
+          }).toList();
+
+          double totalMonthExp = 0;
+          double totalMonthInc = 0;
+          for (var t in monthTxs) {
+            if (t['type'] == 'expense') totalMonthExp += (t['amount'] as num).toDouble();
+            if (t['type'] == 'income') totalMonthInc += (t['amount'] as num).toDouble();
+          }
+
+          double filterExp = 0;
+          double filterInc = 0;
+          for (var t in monthTxs) {
+            if (globalFilterAccounts.contains(t['account_name'])) {
+              if (t['type'] == 'expense') filterExp += (t['amount'] as num).toDouble();
+              if (t['type'] == 'income') filterInc += (t['amount'] as num).toDouble();
+            }
+          }
+
+          int expPct = totalMonthExp > 0 ? ((filterExp / totalMonthExp) * 100).round() : 0;
+          int incPct = totalMonthInc > 0 ? ((filterInc / totalMonthInc) * 100).round() : 0;
+
+          return Column(
             children: [
-              _ringGauge('Income', incPct, inr.format(filterInc), const Color(0xFF00E599)),
-              _ringGauge('Expenses', expPct, inr.format(filterExp), const Color(0xFFFF5252)),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(globalFilterAccounts.length == 3 ? 'All Accounts' : globalFilterAccounts.join(', '),
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white70)),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF5252)),
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Filter', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  const Text('Total', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                  Text(inr.format(filterInc - filterExp), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  _ringGauge('Income', incPct, inr.format(filterInc), const Color(0xFF00E599)),
+                  _ringGauge('Expenses', expPct, inr.format(filterExp), const Color(0xFFFF5252)),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      const Text('Total', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                      Text(inr.format(filterInc - filterExp), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
                 ],
               ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Container(
-            color: const Color(0xFF070B14),
-            child: Row(
-              children: [
-                _adjusterTabHeader('INCOME'),
-                _adjusterTabHeader('EXPENSES'),
-                _adjusterTabHeader('ACCOUNT'),
-              ],
-            ),
-          ),
-          Expanded(
-            child: ListView(
-              children: [
-                CheckboxListTile(
-                  activeColor: const Color(0xFFFF5252),
-                  title: const Text('All', style: TextStyle(fontWeight: FontWeight.bold)),
-                  value: selectedAccs.length == 3,
-                  onChanged: (val) {
-                    ref.read(filterAccountsProvider.notifier).state = val == true ? {'Cash', 'Accounts', 'Card'} : {};
-                  },
+              const SizedBox(height: 20),
+              Container(
+                color: const Color(0xFF070B14),
+                child: Row(
+                  children: [
+                    _adjusterTabHeader('INCOME'),
+                    _adjusterTabHeader('EXPENSES'),
+                    _adjusterTabHeader('ACCOUNT'),
+                  ],
                 ),
-                _accountFilterTile('Cash', 0.00, 55666.00, selectedAccs),
-                _accountFilterTile('Accounts', 5665.00, 52585.00, selectedAccs),
-                _accountFilterTile('Card', 0.00, 2586.00, selectedAccs),
-              ],
-            ),
-          ),
-        ],
+              ),
+              Expanded(
+                child: ListView(
+                  children: [
+                    CheckboxListTile(
+                      activeColor: const Color(0xFFFF5252),
+                      title: const Text('All', style: TextStyle(fontWeight: FontWeight.bold)),
+                      value: globalFilterAccounts.length == 3,
+                      onChanged: (val) {
+                        setState(() {
+                          globalFilterAccounts = val == true ? {'Cash', 'Accounts', 'Card'} : {};
+                        });
+                      },
+                    ),
+                    _accountFilterTile('Cash', 0.00, 55666.00),
+                    _accountFilterTile('Accounts', 5665.00, 52585.00),
+                    _accountFilterTile('Card', 0.00, 2586.00),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -881,8 +854,8 @@ class _AdjusterFilterScreenState extends ConsumerState<AdjusterFilterScreen> {
     );
   }
 
-  Widget _accountFilterTile(String name, double inc, double exp, Set<String> selectedAccs) {
-    final isChecked = selectedAccs.contains(name);
+  Widget _accountFilterTile(String name, double inc, double exp) {
+    final isChecked = globalFilterAccounts.contains(name);
     return CheckboxListTile(
       activeColor: const Color(0xFFFF5252),
       title: Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -895,204 +868,222 @@ class _AdjusterFilterScreenState extends ConsumerState<AdjusterFilterScreen> {
       ),
       value: isChecked,
       onChanged: (val) {
-        final next = Set<String>.from(selectedAccs);
-        if (val == true) {
-          next.add(name);
-        } else {
-          next.remove(name);
-        }
-        ref.read(filterAccountsProvider.notifier).state = next;
+        setState(() {
+          if (val == true) {
+            globalFilterAccounts.add(name);
+          } else {
+            globalFilterAccounts.remove(name);
+          }
+        });
       },
     );
   }
 }
 
 // ==========================================
-// 7. STATS & ANALYTICS TAB
+// 6. STATS & ANALYTICS TAB
 // ==========================================
-class StatsScreen extends ConsumerWidget {
-  const StatsScreen({super.key});
+class StatsScreen extends StatelessWidget {
+  final VoidCallback onRefresh;
+  const StatsScreen({super.key, required this.onRefresh});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final currentMonth = ref.watch(selectedMonthProvider);
-    final txs = ref.watch(transactionsStream).value ?? [];
-
-    final monthTxs = txs.where((t) {
-      final d = DateTime.tryParse(t['date']) ?? DateTime.now();
-      return d.month == currentMonth.month && d.year == currentMonth.year;
-    }).toList();
-
-    double totalExp = 0;
-    double totalInc = 0;
-    Map<String, double> catTotals = {};
-
-    for (var t in monthTxs) {
-      if (t['type'] == 'expense') {
-        final amt = (t['amount'] as num).toDouble();
-        totalExp += amt;
-        catTotals[t['category'] ?? 'Other'] = (catTotals[t['category'] ?? 'Other'] ?? 0) + amt;
-      } else if (t['type'] == 'income') {
-        totalInc += (t['amount'] as num).toDouble();
-      }
-    }
-
+  Widget build(BuildContext context) {
     final colors = [const Color(0xFFFF5252), const Color(0xFFFF9F43), const Color(0xFFFECA57), const Color(0xFF00E599), const Color(0xFF38BDF8)];
 
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFF0A0F1D),
         elevation: 0,
-        title: Text(DateFormat('MMM yyyy').format(currentMonth), style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(DateFormat('MMM yyyy').format(globalSelectedMonth), style: const TextStyle(fontWeight: FontWeight.bold)),
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: AppDatabase.instance.getTransactions(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          final txs = snapshot.data!;
+
+          final monthTxs = txs.where((t) {
+            final d = DateTime.tryParse(t['date']) ?? DateTime.now();
+            return d.month == globalSelectedMonth.month && d.year == globalSelectedMonth.year;
+          }).toList();
+
+          double totalExp = 0;
+          double totalInc = 0;
+          Map<String, double> catTotals = {};
+
+          for (var t in monthTxs) {
+            if (t['type'] == 'expense') {
+              final amt = (t['amount'] as num).toDouble();
+              totalExp += amt;
+              catTotals[t['category'] ?? 'Other'] = (catTotals[t['category'] ?? 'Other'] ?? 0) + amt;
+            } else if (t['type'] == 'income') {
+              totalInc += (t['amount'] as num).toDouble();
+            }
+          }
+
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
             children: [
-              Text('Income  ₹ ${totalInc.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFF00E599), fontWeight: FontWeight.bold)),
-              Text('Expenses  ₹ ${totalExp.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFFFF5252), fontWeight: FontWeight.bold)),
-            ],
-          ),
-          const Divider(color: Color(0xFFFF5252), thickness: 2, height: 20),
-          const SizedBox(height: 10),
-          SizedBox(
-            height: 220,
-            child: catTotals.isEmpty
-                ? const Center(child: Text('No expenses recorded', style: TextStyle(color: Colors.white38)))
-                : PieChart(
-                    PieChartData(
-                      sectionsSpace: 0,
-                      centerSpaceRadius: 0,
-                      sections: catTotals.entries.map((e) {
-                        int idx = catTotals.keys.toList().indexOf(e.key);
-                        double pct = totalExp > 0 ? (e.value / totalExp) * 100 : 0;
-                        return PieChartSectionData(
-                          value: e.value,
-                          title: '${e.key}\n${pct.toStringAsFixed(1)}%',
-                          titleStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
-                          color: colors[idx % colors.length],
-                          radius: 100,
-                        );
-                      }).toList(),
-                    ),
-                  ),
-          ),
-          const SizedBox(height: 24),
-          ...catTotals.entries.map((e) {
-            int idx = catTotals.keys.toList().indexOf(e.key);
-            int pct = totalExp > 0 ? ((e.value / totalExp) * 100).round() : 0;
-            return Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(color: const Color(0xFF131B2E), borderRadius: BorderRadius.circular(8)),
-              child: Row(
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: colors[idx % colors.length], borderRadius: BorderRadius.circular(4)),
-                    child: Text('$pct%', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black)),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(e.key, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                  const Spacer(),
-                  Text(inr.format(e.value), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text('Income  ₹ ${totalInc.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFF00E599), fontWeight: FontWeight.bold)),
+                  Text('Expenses  ₹ ${totalExp.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFFFF5252), fontWeight: FontWeight.bold)),
                 ],
               ),
-            );
-          }),
-        ],
+              const Divider(color: Color(0xFFFF5252), thickness: 2, height: 20),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 220,
+                child: catTotals.isEmpty
+                    ? const Center(child: Text('No expenses recorded', style: TextStyle(color: Colors.white38)))
+                    : PieChart(
+                        PieChartData(
+                          sectionsSpace: 0,
+                          centerSpaceRadius: 0,
+                          sections: catTotals.entries.map((e) {
+                            int idx = catTotals.keys.toList().indexOf(e.key);
+                            double pct = totalExp > 0 ? (e.value / totalExp) * 100 : 0;
+                            return PieChartSectionData(
+                              value: e.value,
+                              title: '${e.key}\n${pct.toStringAsFixed(1)}%',
+                              titleStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                              color: colors[idx % colors.length],
+                              radius: 100,
+                            );
+                          }).toList(),
+                        ),
+                      ),
+              ),
+              const SizedBox(height: 24),
+              ...catTotals.entries.map((e) {
+                int idx = catTotals.keys.toList().indexOf(e.key);
+                int pct = totalExp > 0 ? ((e.value / totalExp) * 100).round() : 0;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(color: const Color(0xFF131B2E), borderRadius: BorderRadius.circular(8)),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(color: colors[idx % colors.length], borderRadius: BorderRadius.circular(4)),
+                        child: Text('$pct%', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black)),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(e.key, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      const Spacer(),
+                      Text(inr.format(e.value), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          );
+        },
       ),
     );
   }
 }
 
 // ==========================================
-// 8. UNIFIED ACCOUNTS & WEALTH TAB (Option A)
+// 7. UNIFIED ACCOUNTS & WEALTH TAB
 // ==========================================
-class AccountsWealthScreen extends ConsumerWidget {
-  const AccountsWealthScreen({super.key});
+class AccountsWealthScreen extends StatelessWidget {
+  final VoidCallback onRefresh;
+  const AccountsWealthScreen({super.key, required this.onRefresh});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final accounts = ref.watch(accountsStream).value ?? [];
-    final investments = ref.watch(investmentsStream).value ?? [];
-    final loans = ref.watch(loansStream).value ?? [];
-
-    double liquid = accounts.where((a) => a['type'] != 'credit_card').fold(0.0, (s, a) => s + (a['balance'] as num).toDouble());
-    double ccDue = accounts.where((a) => a['type'] == 'credit_card').fold(0.0, (s, a) => s + (a['balance'] as num).toDouble());
-    double inv = investments.fold(0.0, (s, i) => s + (i['current_value'] as num).toDouble());
-    double loanDue = loans.fold(0.0, (s, l) => s + (l['remaining_balance'] as num).toDouble());
-    double netWorth = (liquid + inv) - (ccDue + loanDue);
-
+  Widget build(BuildContext context) {
     return DefaultTabController(
       length: 3,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text('Net Worth: ${inr.format(netWorth)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF00E599))),
-          backgroundColor: const Color(0xFF0A0F1D),
-          elevation: 0,
-          bottom: const TabBar(
-            indicatorColor: Color(0xFF00E599),
-            tabs: [
-              Tab(text: 'Accounts & Cards'),
-              Tab(text: 'Investments & SIPs'),
-              Tab(text: 'Loans & EMIs'),
-            ],
-          ),
-        ),
-        body: TabBarView(
-          children: [
-            ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-              children: accounts.map((a) => Card(
-                color: const Color(0xFF131B2E),
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  title: Text(a['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text(a['type'] == 'credit_card' ? 'Due Day: ${a['due_day']}th' : a['type'].toString().toUpperCase()),
-                  trailing: Text(inr.format(a['balance']),
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: a['type'] == 'credit_card' ? const Color(0xFFFF5252) : Colors.white)),
-                ),
-              )).toList(),
+      child: FutureBuilder<List<dynamic>>(
+        future: Future.wait([
+          AppDatabase.instance.getAccounts(),
+          AppDatabase.instance.getInvestments(),
+          AppDatabase.instance.getLoans(),
+        ]),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          final List<Map<String, dynamic>> accounts = snapshot.data![0];
+          final List<Map<String, dynamic>> investments = snapshot.data![1];
+          final List<Map<String, dynamic>> loans = snapshot.data![2];
+
+          double liquid = accounts.where((a) => a['type'] != 'credit_card').fold(0.0, (s, a) => s + (a['balance'] as num).toDouble());
+          double ccDue = accounts.where((a) => a['type'] == 'credit_card').fold(0.0, (s, a) => s + (a['balance'] as num).toDouble());
+          double inv = investments.fold(0.0, (s, i) => s + (i['current_value'] as num).toDouble());
+          double loanDue = loans.fold(0.0, (s, l) => s + (l['remaining_balance'] as num).toDouble());
+          double netWorth = (liquid + inv) - (ccDue + loanDue);
+
+          return Scaffold(
+            appBar: AppBar(
+              title: Text('Net Worth: ${inr.format(netWorth)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF00E599))),
+              backgroundColor: const Color(0xFF0A0F1D),
+              elevation: 0,
+              bottom: const TabBar(
+                indicatorColor: Color(0xFF00E599),
+                tabs: [
+                  Tab(text: 'Accounts & Cards'),
+                  Tab(text: 'Investments & SIPs'),
+                  Tab(text: 'Loans & EMIs'),
+                ],
+              ),
             ),
-            ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-              children: investments.map((i) => Card(
-                color: const Color(0xFF131B2E),
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  title: Text(i['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text('Invested: ${inr.format(i['invested_amount'])}'),
-                  trailing: Text(inr.format(i['current_value']), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF00E599))),
+            body: TabBarView(
+              children: [
+                ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+                  children: accounts.map((a) => Card(
+                    color: const Color(0xFF131B2E),
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      title: Text(a['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text(a['type'] == 'credit_card' ? 'Due Day: ${a['due_day']}th' : a['type'].toString().toUpperCase()),
+                      trailing: Text(inr.format(a['balance']),
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: a['type'] == 'credit_card' ? const Color(0xFFFF5252) : Colors.white)),
+                    ),
+                  )).toList(),
                 ),
-              )).toList(),
-            ),
-            ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-              children: loans.map((l) => Card(
-                color: const Color(0xFF131B2E),
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  title: Text(l['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text('EMI: ${inr.format(l['emi_amount'])}'),
-                  trailing: Text(inr.format(l['remaining_balance']), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFFFF5252))),
+                ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+                  children: investments.map((i) => Card(
+                    color: const Color(0xFF131B2E),
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      title: Text(i['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text('Invested: ${inr.format(i['invested_amount'])}'),
+                      trailing: Text(inr.format(i['current_value']), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF00E599))),
+                    ),
+                  )).toList(),
                 ),
-              )).toList(),
+                ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+                  children: loans.map((l) => Card(
+                    color: const Color(0xFF131B2E),
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      title: Text(l['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text('EMI: ${inr.format(l['emi_amount'])}'),
+                      trailing: Text(inr.format(l['remaining_balance']), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFFFF5252))),
+                    ),
+                  )).toList(),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
 }
 
 // ==========================================
-// 9. CONFIGURATION & MORE TAB
+// 8. MORE & CATEGORY CONFIGURATION
 // ==========================================
 class MoreOptionsScreen extends StatelessWidget {
-  const MoreOptionsScreen({super.key});
+  final VoidCallback onRefresh;
+  const MoreOptionsScreen({super.key, required this.onRefresh});
 
   @override
   Widget build(BuildContext context) {
@@ -1135,6 +1126,7 @@ class MoreOptionsScreen extends StatelessWidget {
             title: const Text('Clear All Records', style: TextStyle(color: Color(0xFFFF5252))),
             onTap: () async {
               await AppDatabase.instance.clearAll();
+              onRefresh();
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Database reset.')));
             },
           ),
@@ -1152,18 +1144,15 @@ class MoreOptionsScreen extends StatelessWidget {
   }
 }
 
-// ==========================================
-// 10. CATEGORY MANAGER SCREEN
-// ==========================================
-class CategoryManagerScreen extends ConsumerStatefulWidget {
+class CategoryManagerScreen extends StatefulWidget {
   final String type;
   const CategoryManagerScreen({super.key, required this.type});
 
   @override
-  ConsumerState<CategoryManagerScreen> createState() => _CategoryManagerScreenState();
+  State<CategoryManagerScreen> createState() => _CategoryManagerScreenState();
 }
 
-class _CategoryManagerScreenState extends ConsumerState<CategoryManagerScreen> {
+class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1189,7 +1178,6 @@ class _CategoryManagerScreenState extends ConsumerState<CategoryManagerScreen> {
                   onPressed: () async {
                     await AppDatabase.instance.deleteCategory(cat['id'], cat['name']);
                     setState(() {});
-                    ref.read(dataRefreshProvider.notifier).state++;
                   },
                 ),
                 title: Row(
@@ -1321,7 +1309,7 @@ class _SubcategoryManagerScreenState extends State<SubcategoryManagerScreen> {
 }
 
 // ==========================================
-// 11. SEARCH DELEGATE
+// 9. SEARCH DELEGATE
 // ==========================================
 class TransactionSearchDelegate extends SearchDelegate {
   final List<Map<String, dynamic>> txs;
@@ -1366,16 +1354,16 @@ class TransactionSearchDelegate extends SearchDelegate {
 }
 
 // ==========================================
-// 12. EXPENSE ENTRY SCREEN (Multi-Item Split + Merchant)
+// 10. EXPENSE ENTRY (Split + Merchant)
 // ==========================================
-class ExpenseEntryScreen extends ConsumerStatefulWidget {
+class ExpenseEntryScreen extends StatefulWidget {
   const ExpenseEntryScreen({super.key});
 
   @override
-  ConsumerState<ExpenseEntryScreen> createState() => _ExpenseEntryScreenState();
+  State<ExpenseEntryScreen> createState() => _ExpenseEntryScreenState();
 }
 
-class _ExpenseEntryScreenState extends ConsumerState<ExpenseEntryScreen> {
+class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
   String _type = 'expense';
   DateTime _date = DateTime.now();
   String _totalAmountStr = '';
@@ -1390,11 +1378,10 @@ class _ExpenseEntryScreenState extends ConsumerState<ExpenseEntryScreen> {
   List<Map<String, dynamic>> _splitItems = [];
   String _bottomPanel = 'keypad';
 
-  final List<String> _commonMerchants = ['Amazon', 'Flipkart', 'Swiggy', 'Zomato', 'Blinkit', 'DMart', 'Uber', 'Petrol Pump'];
+  final List<String> _commonMerchants = ['Amazon', 'Flipkart', 'Swiggy', 'Zomato', 'Blinkit', 'DMart', 'Uber'];
 
   @override
   Widget build(BuildContext context) {
-    final accounts = ref.watch(accountsStream).value ?? [];
     double enteredTotal = double.tryParse(_totalAmountStr) ?? 0.0;
 
     return Scaffold(
@@ -1405,194 +1392,190 @@ class _ExpenseEntryScreenState extends ConsumerState<ExpenseEntryScreen> {
         leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
         title: Text(_type == 'expense' ? 'Expense' : _type == 'income' ? 'Income' : 'Transfer', style: const TextStyle(fontWeight: FontWeight.bold)),
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                children: [
-                  Row(
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: AppDatabase.instance.getAccounts(),
+        builder: (context, snapshot) {
+          final accounts = snapshot.data ?? [];
+
+          return SafeArea(
+            child: Column(
+              children: [
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
                     children: [
-                      _typeButton('income', 'Income'),
-                      const SizedBox(width: 8),
-                      _typeButton('expense', 'Expense'),
-                      const SizedBox(width: 8),
-                      _typeButton('transfer', 'Transfer'),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _formRow(
-                    label: 'Date',
-                    widget: Text(DateFormat('dd/MM/yy (EEE)  h:mm a').format(_date), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-                    onTap: () async {
-                      final picked = await showDatePicker(context: context, initialDate: _date, firstDate: DateTime(2020), lastDate: DateTime(2030));
-                      if (picked != null) setState(() => _date = picked);
-                    },
-                  ),
-                  _formRow(
-                    label: 'Amount',
-                    isActive: _bottomPanel == 'keypad',
-                    widget: Text(_totalAmountStr.isEmpty ? '₹ 0' : '₹ $_totalAmountStr',
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _totalAmountStr.isEmpty ? Colors.white38 : Colors.white)),
-                    onTap: () => setState(() => _bottomPanel = 'keypad'),
-                  ),
-
-                  // Merchant Field
-                  _formRow(
-                    label: 'Merchant',
-                    widget: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        TextField(
-                          controller: _merchantController,
-                          style: const TextStyle(fontSize: 15),
-                          decoration: const InputDecoration(border: InputBorder.none, hintText: 'Store / Payee (e.g. Amazon)', hintStyle: TextStyle(color: Colors.white24)),
-                        ),
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: _commonMerchants.map((m) => Padding(
-                              padding: const EdgeInsets.only(right: 6),
-                              child: ActionChip(
-                                label: Text(m, style: const TextStyle(fontSize: 11)),
-                                backgroundColor: const Color(0xFF131B2E),
-                                onPressed: () => setState(() => _merchantController.text = m),
-                              ),
-                            )).toList(),
-                          ),
-                        ),
-                      ],
-                    ),
-                    onTap: () => setState(() => _bottomPanel = 'none'),
-                  ),
-
-                  // Split Mode Toggle
-                  Container(
-                    margin: const EdgeInsets.symmetric(vertical: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(color: const Color(0xFF131B2E), borderRadius: BorderRadius.circular(10)),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Split Across Items / Categories', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                        Switch(
-                          value: _isSplitMode,
-                          activeColor: const Color(0xFFFF5252),
-                          onChanged: (val) {
-                            setState(() {
-                              _isSplitMode = val;
-                              if (val && _splitItems.isEmpty && enteredTotal > 0) {
-                                _splitItems.add({
-                                  'category': _selectedCategory,
-                                  'subcategory': _selectedSubcategory,
-                                  'emoji': _categoryEmoji,
-                                  'amount': enteredTotal,
-                                  'note': '',
-                                });
-                              }
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  if (_isSplitMode) ...[
-                    ..._splitItems.asMap().entries.map((entry) {
-                      int idx = entry.key;
-                      var item = entry.value;
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 6),
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: const Color(0xFF131B2E), borderRadius: BorderRadius.circular(8)),
-                        child: Row(
-                          children: [
-                            Text(item['emoji'], style: const TextStyle(fontSize: 16)),
-                            const SizedBox(width: 8),
-                            Expanded(child: Text('${item['category']} (${item['subcategory']})', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-                            Text('₹ ${item['amount']}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFFF5252))),
-                            IconButton(icon: const Icon(Icons.close, size: 16), onPressed: () => setState(() => _splitItems.removeAt(idx))),
-                          ],
-                        ),
-                      );
-                    }),
-                    TextButton.icon(
-                      icon: const Icon(Icons.add, color: Color(0xFFFF5252)),
-                      label: const Text('+ Add Split Item', style: TextStyle(color: Color(0xFFFF5252), fontWeight: FontWeight.bold)),
-                      onPressed: () => _showAddSplitItemDialog(context),
-                    ),
-                  ],
-
-                  if (!_isSplitMode)
-                    _formRow(
-                      label: 'Category',
-                      isActive: _bottomPanel == 'category' || _bottomPanel == 'subcategory',
-                      widget: Row(
+                      Row(
                         children: [
-                          Text(_categoryEmoji, style: const TextStyle(fontSize: 18)),
+                          _typeButton('income', 'Income'),
                           const SizedBox(width: 8),
-                          Text('$_selectedCategory${_selectedSubcategory.isNotEmpty ? "/$_selectedSubcategory" : ""}',
-                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                          _typeButton('expense', 'Expense'),
+                          const SizedBox(width: 8),
+                          _typeButton('transfer', 'Transfer'),
                         ],
                       ),
-                      onTap: () => setState(() => _bottomPanel = 'category'),
-                    ),
-
-                  // Account Selector Field
-                  _formRow(
-                    label: 'Account',
-                    isActive: _bottomPanel == 'account',
-                    widget: Text(_selectedAccount, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Color(0xFF38BDF8))),
-                    onTap: () => setState(() => _bottomPanel = 'account'),
-                  ),
-
-                  _formRow(
-                    label: 'Note',
-                    widget: TextField(
-                      controller: _noteController,
-                      style: const TextStyle(fontSize: 15),
-                      decoration: const InputDecoration(border: InputBorder.none, hintText: 'Enter note...', hintStyle: TextStyle(color: Colors.white24)),
-                    ),
-                    onTap: () => setState(() => _bottomPanel = 'none'),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFFF5252),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                          onPressed: () => _saveTransaction(closeOnSave: true),
-                          child: const Text('Save', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                      const SizedBox(height: 16),
+                      _formRow(
+                        label: 'Date',
+                        widget: Text(DateFormat('dd/MM/yy (EEE)  h:mm a').format(_date), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+                        onTap: () async {
+                          final picked = await showDatePicker(context: context, initialDate: _date, firstDate: DateTime(2020), lastDate: DateTime(2030));
+                          if (picked != null) setState(() => _date = picked);
+                        },
+                      ),
+                      _formRow(
+                        label: 'Amount',
+                        isActive: _bottomPanel == 'keypad',
+                        widget: Text(_totalAmountStr.isEmpty ? '₹ 0' : '₹ $_totalAmountStr',
+                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _totalAmountStr.isEmpty ? Colors.white38 : Colors.white)),
+                        onTap: () => setState(() => _bottomPanel = 'keypad'),
+                      ),
+                      _formRow(
+                        label: 'Merchant',
+                        widget: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TextField(
+                              controller: _merchantController,
+                              style: const TextStyle(fontSize: 15),
+                              decoration: const InputDecoration(border: InputBorder.none, hintText: 'Store / Payee (e.g. Amazon)', hintStyle: TextStyle(color: Colors.white24)),
+                            ),
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: _commonMerchants.map((m) => Padding(
+                                  padding: const EdgeInsets.only(right: 6),
+                                  child: ActionChip(
+                                    label: Text(m, style: const TextStyle(fontSize: 11)),
+                                    backgroundColor: const Color(0xFF131B2E),
+                                    onPressed: () => setState(() => _merchantController.text = m),
+                                  ),
+                                )).toList(),
+                              ),
+                            ),
+                          ],
+                        ),
+                        onTap: () => setState(() => _bottomPanel = 'none'),
+                      ),
+                      Container(
+                        margin: const EdgeInsets.symmetric(vertical: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(color: const Color(0xFF131B2E), borderRadius: BorderRadius.circular(10)),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Split Across Items / Categories', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            Switch(
+                              value: _isSplitMode,
+                              activeColor: const Color(0xFFFF5252),
+                              onChanged: (val) {
+                                setState(() {
+                                  _isSplitMode = val;
+                                  if (val && _splitItems.isEmpty && enteredTotal > 0) {
+                                    _splitItems.add({
+                                      'category': _selectedCategory,
+                                      'subcategory': _selectedSubcategory,
+                                      'emoji': _categoryEmoji,
+                                      'amount': enteredTotal,
+                                      'note': '',
+                                    });
+                                  }
+                                });
+                              },
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: OutlinedButton(
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Colors.white24),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                          onPressed: () => _saveTransaction(closeOnSave: false),
-                          child: const Text('Continue', style: TextStyle(fontSize: 15, color: Colors.white)),
+                      if (_isSplitMode) ...[
+                        ..._splitItems.asMap().entries.map((entry) {
+                          int idx = entry.key;
+                          var item = entry.value;
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 6),
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(color: const Color(0xFF131B2E), borderRadius: BorderRadius.circular(8)),
+                            child: Row(
+                              children: [
+                                Text(item['emoji'], style: const TextStyle(fontSize: 16)),
+                                const SizedBox(width: 8),
+                                Expanded(child: Text('${item['category']} (${item['subcategory']})', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
+                                Text('₹ ${item['amount']}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFFF5252))),
+                                IconButton(icon: const Icon(Icons.close, size: 16), onPressed: () => setState(() => _splitItems.removeAt(idx))),
+                              ],
+                            ),
+                          );
+                        }),
+                        TextButton.icon(
+                          icon: const Icon(Icons.add, color: Color(0xFFFF5252)),
+                          label: const Text('+ Add Split Item', style: TextStyle(color: Color(0xFFFF5252), fontWeight: FontWeight.bold)),
+                          onPressed: () => _showAddSplitItemDialog(context),
                         ),
+                      ],
+                      if (!_isSplitMode)
+                        _formRow(
+                          label: 'Category',
+                          isActive: _bottomPanel == 'category' || _bottomPanel == 'subcategory',
+                          widget: Row(
+                            children: [
+                              Text(_categoryEmoji, style: const TextStyle(fontSize: 18)),
+                              const SizedBox(width: 8),
+                              Text('$_selectedCategory${_selectedSubcategory.isNotEmpty ? "/$_selectedSubcategory" : ""}',
+                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                          onTap: () => setState(() => _bottomPanel = 'category'),
+                        ),
+                      _formRow(
+                        label: 'Account',
+                        isActive: _bottomPanel == 'account',
+                        widget: Text(_selectedAccount, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Color(0xFF38BDF8))),
+                        onTap: () => setState(() => _bottomPanel = 'account'),
+                      ),
+                      _formRow(
+                        label: 'Note',
+                        widget: TextField(
+                          controller: _noteController,
+                          style: const TextStyle(fontSize: 15),
+                          decoration: const InputDecoration(border: InputBorder.none, hintText: 'Enter note...', hintStyle: TextStyle(color: Colors.white24)),
+                        ),
+                        onTap: () => setState(() => _bottomPanel = 'none'),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFFF5252),
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                              onPressed: () => _saveTransaction(closeOnSave: true),
+                              child: const Text('Save', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Colors.white24),
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                              onPressed: () => _saveTransaction(closeOnSave: false),
+                              child: const Text('Continue', style: TextStyle(fontSize: 15, color: Colors.white)),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
+                ),
+                _buildBottomDockedPanel(accounts),
+              ],
             ),
-            _buildBottomDockedPanel(accounts),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -1937,7 +1920,6 @@ class _ExpenseEntryScreenState extends ConsumerState<ExpenseEntryScreen> {
     }
 
     await AppDatabase.instance.addTransactionsList(records);
-    ref.read(dataRefreshProvider.notifier).state++;
     HapticFeedback.mediumImpact();
 
     if (closeOnSave) {
