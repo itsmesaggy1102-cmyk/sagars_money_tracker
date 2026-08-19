@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
@@ -10,7 +9,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:csv/csv.dart';
 
 // ==========================================
-// 1. DATA MODEL & IN-MEMORY STORE REPOSITORY
+// 1. DATA MODELS
 // ==========================================
 class AccountModel {
   int? id;
@@ -24,9 +23,9 @@ class AccountModel {
   Map<String, dynamic> toMap() => {'id': id, 'name': name, 'type': type, 'balance': balance, 'due_day': dueDay};
   factory AccountModel.fromMap(Map<String, dynamic> m) => AccountModel(
         id: m['id'],
-        name: m['name'],
-        type: m['type'],
-        balance: (m['balance'] as num).toDouble(),
+        name: m['name'] ?? '',
+        type: m['type'] ?? 'bank',
+        balance: (m['balance'] as num?)?.toDouble() ?? 0.0,
         dueDay: m['due_day'] ?? 0,
       );
 }
@@ -43,9 +42,9 @@ class CategoryModel {
   Map<String, dynamic> toMap() => {'id': id, 'name': name, 'type': type, 'emoji': emoji, 'budget': budget};
   factory CategoryModel.fromMap(Map<String, dynamic> m) => CategoryModel(
         id: m['id'],
-        name: m['name'],
-        type: m['type'],
-        emoji: m['emoji'],
+        name: m['name'] ?? '',
+        type: m['type'] ?? 'expense',
+        emoji: m['emoji'] ?? '📦',
         budget: (m['budget'] as num?)?.toDouble() ?? 0.0,
       );
 }
@@ -60,8 +59,8 @@ class SubcategoryModel {
   Map<String, dynamic> toMap() => {'id': id, 'category_name': categoryName, 'name': name};
   factory SubcategoryModel.fromMap(Map<String, dynamic> m) => SubcategoryModel(
         id: m['id'],
-        categoryName: m['category_name'],
-        name: m['name'],
+        categoryName: m['category_name'] ?? '',
+        name: m['name'] ?? '',
       );
 }
 
@@ -108,10 +107,10 @@ class TransactionModel {
 
   factory TransactionModel.fromMap(Map<String, dynamic> m) => TransactionModel(
         id: m['id'],
-        type: m['type'],
-        amount: (m['amount'] as num).toDouble(),
-        date: DateTime.tryParse(m['date']) ?? DateTime.now(),
-        accountName: m['account_name'],
+        type: m['type'] ?? 'expense',
+        amount: (m['amount'] as num?)?.toDouble() ?? 0.0,
+        date: DateTime.tryParse(m['date'] ?? '') ?? DateTime.now(),
+        accountName: m['account_name'] ?? 'Cash',
         toAccount: m['to_account'] ?? '',
         category: m['category'] ?? '',
         subcategory: m['subcategory'] ?? '',
@@ -133,10 +132,10 @@ class InvestmentModel {
   Map<String, dynamic> toMap() => {'id': id, 'name': name, 'category': category, 'invested_amount': invested, 'current_value': current};
   factory InvestmentModel.fromMap(Map<String, dynamic> m) => InvestmentModel(
         id: m['id'],
-        name: m['name'],
-        category: m['category'],
-        invested: (m['invested_amount'] as num).toDouble(),
-        current: (m['current_value'] as num).toDouble(),
+        name: m['name'] ?? '',
+        category: m['category'] ?? 'Mutual Fund',
+        invested: (m['invested_amount'] as num?)?.toDouble() ?? 0.0,
+        current: (m['current_value'] as num?)?.toDouble() ?? 0.0,
       );
 }
 
@@ -151,21 +150,21 @@ class LoanModel {
   Map<String, dynamic> toMap() => {'id': id, 'name': name, 'remaining_balance': remaining, 'emi_amount': emi};
   factory LoanModel.fromMap(Map<String, dynamic> m) => LoanModel(
         id: m['id'],
-        name: m['name'],
-        remaining: (m['remaining_balance'] as num).toDouble(),
-        emi: (m['emi_amount'] as num).toDouble(),
+        name: m['name'] ?? '',
+        remaining: (m['remaining_balance'] as num?)?.toDouble() ?? 0.0,
+        emi: (m['emi_amount'] as num?)?.toDouble() ?? 0.0,
       );
 }
 
 // ==========================================
-// 2. SYNCHRONOUS IN-MEMORY APP STORE
+// 2. STATE REPOSITORY
 // ==========================================
 class AppStore extends ChangeNotifier {
   static final AppStore instance = AppStore._init();
   AppStore._init();
 
-  late Database db;
-  bool isInitialized = false;
+  Database? _db;
+  bool isReady = false;
 
   List<AccountModel> accounts = [];
   List<CategoryModel> categories = [];
@@ -179,215 +178,223 @@ class AppStore extends ChangeNotifier {
   Set<String> activeFilterAccounts = {};
 
   Future<void> init() async {
-    final docsDir = await getApplicationDocumentsDirectory();
-    final path = p.join(docsDir.path, 'sagars_money_tracker_v8.db');
+    try {
+      final docsDir = await getApplicationDocumentsDirectory();
+      final path = p.join(docsDir.path, 'sagars_tracker_v9.db');
 
-    db = await openDatabase(
-      path,
-      version: 1,
-      onCreate: (db, v) async {
-        await db.execute('CREATE TABLE accounts (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, type TEXT, balance REAL, due_day INTEGER)');
-        await db.execute('CREATE TABLE categories (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, type TEXT, emoji TEXT, budget REAL)');
-        await db.execute('CREATE TABLE subcategories (id INTEGER PRIMARY KEY AUTOINCREMENT, category_name TEXT, name TEXT)');
-        await db.execute('CREATE TABLE transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT, amount REAL, date TEXT, account_name TEXT, to_account TEXT, category TEXT, subcategory TEXT, merchant TEXT, note TEXT, is_bookmarked INTEGER)');
-        await db.execute('CREATE TABLE investments (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, category TEXT, invested_amount REAL, current_value REAL)');
-        await db.execute('CREATE TABLE loans (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, remaining_balance REAL, emi_amount REAL)');
-        await db.execute('CREATE TABLE merchants (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)');
+      _db = await openDatabase(
+        path,
+        version: 1,
+        onCreate: (db, v) async {
+          await db.execute('CREATE TABLE accounts (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, type TEXT, balance REAL, due_day INTEGER)');
+          await db.execute('CREATE TABLE categories (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, type TEXT, emoji TEXT, budget REAL)');
+          await db.execute('CREATE TABLE subcategories (id INTEGER PRIMARY KEY AUTOINCREMENT, category_name TEXT, name TEXT)');
+          await db.execute('CREATE TABLE transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT, amount REAL, date TEXT, account_name TEXT, to_account TEXT, category TEXT, subcategory TEXT, merchant TEXT, note TEXT, is_bookmarked INTEGER)');
+          await db.execute('CREATE TABLE investments (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, category TEXT, invested_amount REAL, current_value REAL)');
+          await db.execute('CREATE TABLE loans (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, remaining_balance REAL, emi_amount REAL)');
 
-        // Seed Defaults
-        await db.insert('accounts', {'name': 'Cash', 'type': 'cash', 'balance': 55666.0, 'due_day': 0});
-        await db.insert('accounts', {'name': 'Accounts', 'type': 'bank', 'balance': 52585.0, 'due_day': 0});
-        await db.insert('accounts', {'name': 'Card', 'type': 'credit_card', 'balance': 2586.0, 'due_day': 20});
+          // Defaults
+          await db.insert('accounts', {'name': 'Cash', 'type': 'cash', 'balance': 55666.0, 'due_day': 0});
+          await db.insert('accounts', {'name': 'Accounts', 'type': 'bank', 'balance': 52585.0, 'due_day': 0});
+          await db.insert('accounts', {'name': 'Card', 'type': 'credit_card', 'balance': 2586.0, 'due_day': 20});
 
-        final defaultExpCats = [
-          {'name': 'Food', 'emoji': '🍜', 'subs': ['Lunch', 'Dinner', 'Eating out', 'Beverages']},
-          {'name': 'Social Life', 'emoji': '🧑‍🤝‍🧑', 'subs': ['Friend', 'Fellowship', 'Alumni', 'Dues']},
-          {'name': 'Pets', 'emoji': '🐶', 'subs': []},
-          {'name': 'Transport', 'emoji': '🚕', 'subs': ['Bus', 'Subway', 'Taxi', 'Car']},
-          {'name': 'Culture', 'emoji': '🖼️', 'subs': ['Books', 'Movie', 'Music', 'Apps']},
-          {'name': 'Household', 'emoji': '🪑', 'subs': ['Appliances', 'Furniture', 'Kitchen', 'Toiletries']},
-          {'name': 'Apparel', 'emoji': '🧥', 'subs': ['Clothing', 'Fashion', 'Shoes']},
-          {'name': 'Beauty', 'emoji': '💄', 'subs': ['Cosmetics', 'Makeup', 'Accessories']},
-          {'name': 'Health', 'emoji': '🧘', 'subs': ['Health', 'Yoga', 'Hospital', 'Medicine']},
-          {'name': 'Education', 'emoji': '📙', 'subs': ['Schooling', 'Textbooks', 'Academy']},
-          {'name': 'Gift', 'emoji': '🎁', 'subs': []},
-          {'name': 'Other', 'emoji': '📦', 'subs': []},
-        ];
+          final defaultExp = [
+            {'name': 'Food', 'emoji': '🍜', 'subs': ['Lunch', 'Dinner', 'Eating out', 'Beverages']},
+            {'name': 'Social Life', 'emoji': '🧑‍🤝‍🧑', 'subs': ['Friend', 'Fellowship', 'Alumni', 'Dues']},
+            {'name': 'Pets', 'emoji': '🐶', 'subs': []},
+            {'name': 'Transport', 'emoji': '🚕', 'subs': ['Bus', 'Subway', 'Taxi', 'Car']},
+            {'name': 'Culture', 'emoji': '🖼️', 'subs': ['Books', 'Movie', 'Music', 'Apps']},
+            {'name': 'Household', 'emoji': '🪑', 'subs': ['Appliances', 'Furniture', 'Kitchen', 'Toiletries']},
+            {'name': 'Apparel', 'emoji': '🧥', 'subs': ['Clothing', 'Fashion', 'Shoes']},
+            {'name': 'Beauty', 'emoji': '💄', 'subs': ['Cosmetics', 'Makeup', 'Accessories']},
+            {'name': 'Health', 'emoji': '🧘', 'subs': ['Health', 'Yoga', 'Hospital', 'Medicine']},
+            {'name': 'Education', 'emoji': '📙', 'subs': ['Schooling', 'Textbooks', 'Academy']},
+            {'name': 'Gift', 'emoji': '🎁', 'subs': []},
+            {'name': 'Other', 'emoji': '📦', 'subs': []},
+          ];
 
-        for (var c in defaultExpCats) {
-          await db.insert('categories', {'name': c['name'], 'type': 'expense', 'emoji': c['emoji'], 'budget': 0.0});
-          for (var s in (c['subs'] as List<String>)) {
-            await db.insert('subcategories', {'category_name': c['name'], 'name': s});
+          for (var c in defaultExp) {
+            await db.insert('categories', {'name': c['name'], 'type': 'expense', 'emoji': c['emoji'], 'budget': 0.0});
+            for (var s in (c['subs'] as List<String>)) {
+              await db.insert('subcategories', {'category_name': c['name'], 'name': s});
+            }
           }
-        }
 
-        final defaultIncCats = [
-          {'name': 'Allowance', 'emoji': '🤑', 'subs': ['DA', 'Pocket Money']},
-          {'name': 'Salary', 'emoji': '💰', 'subs': []},
-          {'name': 'Petty cash', 'emoji': '💵', 'subs': []},
-          {'name': 'Bonus', 'emoji': '🥇', 'subs': []},
-          {'name': 'Other', 'emoji': '📦', 'subs': []},
-        ];
+          final defaultInc = [
+            {'name': 'Allowance', 'emoji': '🤑', 'subs': ['DA', 'Pocket Money']},
+            {'name': 'Salary', 'emoji': '💰', 'subs': []},
+            {'name': 'Petty cash', 'emoji': '💵', 'subs': []},
+            {'name': 'Bonus', 'emoji': '🥇', 'subs': []},
+            {'name': 'Other', 'emoji': '📦', 'subs': []},
+          ];
 
-        for (var c in defaultIncCats) {
-          await db.insert('categories', {'name': c['name'], 'type': 'income', 'emoji': c['emoji'], 'budget': 0.0});
-          for (var s in (c['subs'] as List<String>)) {
-            await db.insert('subcategories', {'category_name': c['name'], 'name': s});
+          for (var c in defaultInc) {
+            await db.insert('categories', {'name': c['name'], 'type': 'income', 'emoji': c['emoji'], 'budget': 0.0});
+            for (var s in (c['subs'] as List<String>)) {
+              await db.insert('subcategories', {'category_name': c['name'], 'name': s});
+            }
           }
-        }
 
-        await db.insert('investments', {'name': 'Flexi Cap Equity Fund', 'category': 'Mutual Fund', 'invested_amount': 75000.0, 'current_value': 92400.0});
-        await db.insert('loans', {'name': 'Car Loan', 'remaining_balance': 180000.0, 'emi_amount': 9500.0});
+          await db.insert('investments', {'name': 'Flexi Cap Equity Fund', 'category': 'Mutual Fund', 'invested_amount': 75000.0, 'current_value': 92400.0});
+          await db.insert('loans', {'name': 'Car Loan', 'remaining_balance': 180000.0, 'emi_amount': 9500.0});
 
-        await db.insert('transactions', {
-          'type': 'expense',
-          'amount': 55666.0,
-          'date': '2026-08-17T12:00:00',
-          'account_name': 'Cash',
-          'category': 'Food',
-          'subcategory': 'Eating out',
-          'merchant': 'Taj Dining',
-          'note': 'Dinner',
-          'is_bookmarked': 0
-        });
-        await db.insert('transactions', {
-          'type': 'expense',
-          'amount': 52585.0,
-          'date': '2026-08-17T14:30:00',
-          'account_name': 'Accounts',
-          'category': 'Social Life',
-          'subcategory': 'Friend',
-          'merchant': 'Trip',
-          'note': 'Alumni weekend',
-          'is_bookmarked': 0
-        });
-        await db.insert('transactions', {
-          'type': 'expense',
-          'amount': 2586.0,
-          'date': '2026-08-17T15:10:00',
-          'account_name': 'Card',
-          'category': 'Transport',
-          'subcategory': 'Taxi',
-          'merchant': 'Uber',
-          'note': 'Airport ride',
-          'is_bookmarked': 0
-        });
-        await db.insert('transactions', {
-          'type': 'income',
-          'amount': 5665.0,
-          'date': '2026-08-17T10:00:00',
-          'account_name': 'Accounts',
-          'category': 'Salary',
-          'subcategory': '',
-          'merchant': 'Payroll',
-          'note': 'Monthly income',
-          'is_bookmarked': 0
-        });
-      },
-    );
-
-    await refreshState();
-    activeFilterAccounts = accounts.map((a) => a.name).toSet();
-    isInitialized = true;
+          await db.insert('transactions', {
+            'type': 'expense',
+            'amount': 55666.0,
+            'date': '2026-08-17T12:00:00',
+            'account_name': 'Cash',
+            'category': 'Food',
+            'subcategory': 'Eating out',
+            'merchant': 'Taj Dining',
+            'note': 'Dinner',
+            'is_bookmarked': 0
+          });
+          await db.insert('transactions', {
+            'type': 'expense',
+            'amount': 52585.0,
+            'date': '2026-08-17T14:30:00',
+            'account_name': 'Accounts',
+            'category': 'Social Life',
+            'subcategory': 'Friend',
+            'merchant': 'Trip',
+            'note': 'Alumni weekend',
+            'is_bookmarked': 0
+          });
+          await db.insert('transactions', {
+            'type': 'expense',
+            'amount': 2586.0,
+            'date': '2026-08-17T15:10:00',
+            'account_name': 'Card',
+            'category': 'Transport',
+            'subcategory': 'Taxi',
+            'merchant': 'Uber',
+            'note': 'Airport ride',
+            'is_bookmarked': 0
+          });
+          await db.insert('transactions', {
+            'type': 'income',
+            'amount': 5665.0,
+            'date': '2026-08-17T10:00:00',
+            'account_name': 'Accounts',
+            'category': 'Salary',
+            'subcategory': '',
+            'merchant': 'Payroll',
+            'note': 'Monthly income',
+            'is_bookmarked': 0
+          });
+        },
+      );
+      await loadData();
+    } catch (e) {
+      debugPrint('DB Error: $e');
+    }
+    isReady = true;
     notifyListeners();
   }
 
-  Future<void> refreshState() async {
-    final aList = await db.query('accounts');
+  Future<void> loadData() async {
+    if (_db == null) return;
+    final aList = await _db!.query('accounts');
     accounts = aList.map((m) => AccountModel.fromMap(m)).toList();
 
-    final cList = await db.query('categories');
+    final cList = await _db!.query('categories');
     categories = cList.map((m) => CategoryModel.fromMap(m)).toList();
 
-    final sList = await db.query('subcategories');
+    final sList = await _db!.query('subcategories');
     subcategories = sList.map((m) => SubcategoryModel.fromMap(m)).toList();
 
-    final tList = await db.query('transactions', orderBy: 'date DESC');
+    final tList = await _db!.query('transactions', orderBy: 'date DESC');
     transactions = tList.map((m) => TransactionModel.fromMap(m)).toList();
 
-    final iList = await db.query('investments');
+    final iList = await _db!.query('investments');
     investments = iList.map((m) => InvestmentModel.fromMap(m)).toList();
 
-    final lList = await db.query('loans');
+    final lList = await _db!.query('loans');
     loans = lList.map((m) => LoanModel.fromMap(m)).toList();
 
+    if (activeFilterAccounts.isEmpty) {
+      activeFilterAccounts = accounts.map((a) => a.name).toSet();
+    }
     notifyListeners();
   }
 
   Future<void> addTransaction(TransactionModel tx) async {
-    await db.insert('transactions', tx.toMap());
+    if (_db == null) return;
+    await _db!.insert('transactions', tx.toMap());
     if (tx.type == 'expense') {
-      await db.rawUpdate('UPDATE accounts SET balance = balance - ? WHERE name = ?', [tx.amount, tx.accountName]);
+      await _db!.rawUpdate('UPDATE accounts SET balance = balance - ? WHERE name = ?', [tx.amount, tx.accountName]);
     } else if (tx.type == 'income') {
-      await db.rawUpdate('UPDATE accounts SET balance = balance + ? WHERE name = ?', [tx.amount, tx.accountName]);
+      await _db!.rawUpdate('UPDATE accounts SET balance = balance + ? WHERE name = ?', [tx.amount, tx.accountName]);
     } else if (tx.type == 'transfer') {
-      await db.rawUpdate('UPDATE accounts SET balance = balance - ? WHERE name = ?', [tx.amount, tx.accountName]);
-      await db.rawUpdate('UPDATE accounts SET balance = balance + ? WHERE name = ?', [tx.amount, tx.toAccount]);
+      await _db!.rawUpdate('UPDATE accounts SET balance = balance - ? WHERE name = ?', [tx.amount, tx.accountName]);
+      await _db!.rawUpdate('UPDATE accounts SET balance = balance + ? WHERE name = ?', [tx.amount, tx.toAccount]);
     }
-    await refreshState();
+    await loadData();
   }
 
   Future<void> deleteTransaction(int id) async {
-    await db.delete('transactions', where: 'id = ?', whereArgs: [id]);
-    await refreshState();
+    if (_db == null) return;
+    await _db!.delete('transactions', where: 'id = ?', whereArgs: [id]);
+    await loadData();
   }
 
   Future<void> toggleBookmark(int id, int current) async {
-    await db.update('transactions', {'is_bookmarked': current == 1 ? 0 : 1}, where: 'id = ?', whereArgs: [id]);
-    await refreshState();
+    if (_db == null) return;
+    await _db!.update('transactions', {'is_bookmarked': current == 1 ? 0 : 1}, where: 'id = ?', whereArgs: [id]);
+    await loadData();
   }
 
   Future<void> addCategory(String name, String type, String emoji) async {
-    await db.insert('categories', {'name': name, 'type': type, 'emoji': emoji, 'budget': 0.0});
-    await refreshState();
+    if (_db == null) return;
+    await _db!.insert('categories', {'name': name, 'type': type, 'emoji': emoji, 'budget': 0.0});
+    await loadData();
   }
 
   Future<void> deleteCategory(int id, String name) async {
-    await db.delete('categories', where: 'id = ?', whereArgs: [id]);
-    await db.delete('subcategories', where: 'category_name = ?', whereArgs: [name]);
-    await refreshState();
+    if (_db == null) return;
+    await _db!.delete('categories', where: 'id = ?', whereArgs: [id]);
+    await _db!.delete('subcategories', where: 'category_name = ?', whereArgs: [name]);
+    await loadData();
   }
 
   Future<void> addSubcategory(String catName, String name) async {
-    await db.insert('subcategories', {'category_name': catName, 'name': name});
-    await refreshState();
+    if (_db == null) return;
+    await _db!.insert('subcategories', {'category_name': catName, 'name': name});
+    await loadData();
   }
 
   Future<void> deleteSubcategory(int id) async {
-    await db.delete('subcategories', where: 'id = ?', whereArgs: [id]);
-    await refreshState();
+    if (_db == null) return;
+    await _db!.delete('subcategories', where: 'id = ?', whereArgs: [id]);
+    await loadData();
   }
 
   Future<void> addAccount(String name, String type, double balance, int dueDay) async {
-    await db.insert('accounts', {'name': name, 'type': type, 'balance': balance, 'due_day': dueDay});
+    if (_db == null) return;
+    await _db!.insert('accounts', {'name': name, 'type': type, 'balance': balance, 'due_day': dueDay});
     activeFilterAccounts.add(name);
-    await refreshState();
-  }
-
-  Future<void> deleteAccount(int id) async {
-    await db.delete('accounts', where: 'id = ?', whereArgs: [id]);
-    await refreshState();
+    await loadData();
   }
 
   Future<void> clearAll() async {
-    await db.delete('transactions');
-    await db.delete('accounts');
-    await db.delete('categories');
-    await db.delete('subcategories');
-    await db.delete('investments');
-    await db.delete('loans');
-    await refreshState();
+    if (_db == null) return;
+    await _db!.delete('transactions');
+    await _db!.delete('accounts');
+    await _db!.delete('categories');
+    await _db!.delete('subcategories');
+    await _db!.delete('investments');
+    await _db!.delete('loans');
+    await loadData();
   }
 }
 
 final inr = NumberFormat.currency(symbol: '₹', locale: 'en_IN', decimalDigits: 2);
 
 // ==========================================
-// 3. MAIN ROOT WIDGET
+// 3. ROOT WIDGET
 // ==========================================
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  await AppStore.instance.init();
   runApp(const SagarsMoneyTrackerApp());
 }
 
@@ -401,7 +408,6 @@ class SagarsMoneyTrackerApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF0A0F1D),
-        textTheme: GoogleFonts.dmSansTextTheme(ThemeData.dark().textTheme),
         colorScheme: const ColorScheme.dark(
           primary: Color(0xFF00E599),
           secondary: Color(0xFF38BDF8),
@@ -414,9 +420,6 @@ class SagarsMoneyTrackerApp extends StatelessWidget {
   }
 }
 
-// ==========================================
-// 4. BOTTOM TABS CONTROLLER
-// ==========================================
 class RootNavigationScreen extends StatefulWidget {
   const RootNavigationScreen({super.key});
 
@@ -428,14 +431,16 @@ class _RootNavigationScreenState extends State<RootNavigationScreen> {
   int _tab = 0;
 
   @override
+  void initState() {
+    super.initState();
+    AppStore.instance.init();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: AppStore.instance,
       builder: (context, _) {
-        if (!AppStore.instance.isInitialized) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator(color: Color(0xFFFF5252))));
-        }
-
         final List<Widget> pages = [
           const HomeScreenLayout(),
           const StatsScreen(),
@@ -476,7 +481,7 @@ class _RootNavigationScreenState extends State<RootNavigationScreen> {
 }
 
 // ==========================================
-// 5. HOME SCREEN (Daily, Calendar, Month, Adjuster, CC Pay)
+// 4. HOME SCREEN
 // ==========================================
 class HomeScreenLayout extends StatefulWidget {
   const HomeScreenLayout({super.key});
@@ -565,7 +570,6 @@ class _HomeScreenLayoutState extends State<HomeScreenLayout> {
           children: [
             if (ccAlerts.isNotEmpty)
               ...ccAlerts.map((cc) {
-                final days = cc.dueDay - now.day;
                 return Container(
                   margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -732,7 +736,7 @@ class _HomeScreenLayoutState extends State<HomeScreenLayout> {
 }
 
 // ==========================================
-// 6. ADJUSTER FILTER SCREEN
+// 5. ADJUSTER SCREEN
 // ==========================================
 class AdjusterFilterScreen extends StatefulWidget {
   const AdjusterFilterScreen({super.key});
@@ -747,7 +751,6 @@ class _AdjusterFilterScreenState extends State<AdjusterFilterScreen> {
   @override
   Widget build(BuildContext context) {
     final store = AppStore.instance;
-
     final monthTxs = store.transactions.where((t) => t.date.month == store.selectedMonth.month && t.date.year == store.selectedMonth.year).toList();
 
     double totalMonthExp = 0;
@@ -905,7 +908,7 @@ class _AdjusterFilterScreenState extends State<AdjusterFilterScreen> {
 }
 
 // ==========================================
-// 7. STATS & ANALYTICS TAB
+// 6. STATS TAB
 // ==========================================
 class StatsScreen extends StatelessWidget {
   const StatsScreen({super.key});
@@ -1000,7 +1003,7 @@ class StatsScreen extends StatelessWidget {
 }
 
 // ==========================================
-// 8. UNIFIED ACCOUNTS & WEALTH TAB
+// 7. ACCOUNTS & WEALTH TAB
 // ==========================================
 class AccountsWealthScreen extends StatelessWidget {
   const AccountsWealthScreen({super.key});
@@ -1139,7 +1142,7 @@ class AccountsWealthScreen extends StatelessWidget {
 }
 
 // ==========================================
-// 9. CONFIGURATION & MORE TAB
+// 8. CONFIGURATION & MORE TAB
 // ==========================================
 class MoreOptionsScreen extends StatelessWidget {
   const MoreOptionsScreen({super.key});
@@ -1351,7 +1354,7 @@ class SubcategoryManagerScreen extends StatelessWidget {
 }
 
 // ==========================================
-// 10. SEARCH DELEGATE
+// 9. SEARCH DELEGATE
 // ==========================================
 class TransactionSearchDelegate extends SearchDelegate {
   final List<TransactionModel> txs;
@@ -1396,7 +1399,7 @@ class TransactionSearchDelegate extends SearchDelegate {
 }
 
 // ==========================================
-// 11. EXPENSE / INCOME / TRANSFER ENTRY (Fixed Screen Range + Dedicated Transfer Fields)
+// 10. ENTRY SCREEN (Split + Merchant + Fixed Screen Range)
 // ==========================================
 class ExpenseEntryScreen extends StatefulWidget {
   const ExpenseEntryScreen({super.key});
@@ -1406,7 +1409,7 @@ class ExpenseEntryScreen extends StatefulWidget {
 }
 
 class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
-  String _type = 'expense'; // 'expense', 'income', 'transfer'
+  String _type = 'expense';
   DateTime _date = DateTime.now();
   String _totalAmountStr = '';
   String _selectedCategory = 'Food';
@@ -1420,7 +1423,7 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
 
   bool _isSplitMode = false;
   List<Map<String, dynamic>> _splitItems = [];
-  String _bottomPanel = 'keypad'; // 'keypad', 'category', 'subcategory', 'account', 'to_account', 'none'
+  String _bottomPanel = 'keypad';
 
   @override
   Widget build(BuildContext context) {
@@ -1468,8 +1471,6 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
                         style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _totalAmountStr.isEmpty ? Colors.white38 : Colors.white)),
                     onTap: () => setState(() => _bottomPanel = 'keypad'),
                   ),
-
-                  // =================== TRANSFER VIEW ===================
                   if (_type == 'transfer') ...[
                     _formRow(
                       label: 'From Account',
@@ -1494,8 +1495,6 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
                       onTap: () => setState(() => _bottomPanel = 'none'),
                     ),
                   ],
-
-                  // =================== EXPENSE & INCOME VIEW ===================
                   if (_type != 'transfer') ...[
                     _formRow(
                       label: 'Merchant',
@@ -1524,7 +1523,6 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
                       ),
                       onTap: () => setState(() => _bottomPanel = 'none'),
                     ),
-
                     if (_type == 'expense') ...[
                       Container(
                         margin: const EdgeInsets.symmetric(vertical: 8),
@@ -1581,7 +1579,6 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
                         ),
                       ],
                     ],
-
                     if (!_isSplitMode)
                       _formRow(
                         label: 'Category',
@@ -1596,7 +1593,6 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
                         ),
                         onTap: () => setState(() => _bottomPanel = 'category'),
                       ),
-
                     _formRow(
                       label: 'Account',
                       isActive: _bottomPanel == 'account',
@@ -1604,7 +1600,6 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
                       onTap: () => setState(() => _bottomPanel = 'account'),
                     ),
                   ],
-
                   _formRow(
                     label: 'Note',
                     widget: TextField(
@@ -1614,9 +1609,7 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
                     ),
                     onTap: () => setState(() => _bottomPanel = 'none'),
                   ),
-
                   const SizedBox(height: 20),
-
                   Row(
                     children: [
                       Expanded(
@@ -1648,8 +1641,6 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
                 ],
               ),
             ),
-
-            // Fixed Screen Range Bottom Dock
             _buildBottomDockedPanel(),
           ],
         ),
