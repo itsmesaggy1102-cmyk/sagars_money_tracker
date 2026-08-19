@@ -5,10 +5,10 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:fillColor="#060D1A"
+        android:fillColor="#0A0F1D"
         android:pathData="M0,0h108v108h-108z"/>
-    <!-- Wallet Emerald Icon -->
+    <!-- Wallet Shape in Emerald & Coral -->
     <path
-        android:fillColor="#10B981"
-        android:pathData="M24,32h60c4.4,0,8,3.6,8,8v32c0,4.4-3.6,8-8,8H24c-4.4,0-8-3.6-8-8V40c0-4.4,3.6-8,8-8zm48,20a4,4,0,1,0,0,8,4,4,0,0,0,0-8z"/>
+        android:fillColor="#00E599"
+        android:pathData="M20,28h68c4.4,0,8,3.6,8,8v36c0,4.4-3.6,8-8,8H20c-4.4,0-8-3.6-8-8V36c0-4.4,3.6-8,8-8zm56,22a5,5,0,1,0,0,10,5,5,0,0,0,0-10z"/>
 </vector>
