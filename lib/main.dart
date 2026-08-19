@@ -644,7 +644,7 @@ class _HomeScreenLayoutState extends State<HomeScreenLayout> {
                               ),
                               title: Row(
                                 children: [
-                                  Text(t.type == 'transfer' ? '${t.accountName} $\rightarrow$ ${t.toAccount}' : t.category, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                  Text(t.type == 'transfer' ? '${t.accountName} → ${t.toAccount}' : t.category, style: const TextStyle(fontWeight: FontWeight.bold)),
                                   if (t.merchant.isNotEmpty) ...[
                                     const SizedBox(width: 8),
                                     Container(
@@ -1705,7 +1705,7 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
     if (_bottomPanel == 'none') return const SizedBox.shrink();
 
     return Container(
-      padding: const EdgeInsets.only(bottom: 24), // Lift up cleanly above system buttons
+      padding: const EdgeInsets.only(bottom: 24),
       decoration: const BoxDecoration(
         color: Color(0xFF131B2E),
         border: Border(top: BorderSide(color: Color(0xFF1E293B))),
