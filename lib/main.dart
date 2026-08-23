@@ -75,6 +75,7 @@ class TransactionModel {
   String subcategory;
   String merchant;
   String note;
+  double fee;
   int isBookmarked;
 
   TransactionModel({
@@ -88,6 +89,7 @@ class TransactionModel {
     this.subcategory = '',
     this.merchant = '',
     this.note = '',
+    this.fee = 0.0,
     this.isBookmarked = 0,
   });
 
@@ -102,6 +104,7 @@ class TransactionModel {
         'subcategory': subcategory,
         'merchant': merchant,
         'note': note,
+        'fee': fee,
         'is_bookmarked': isBookmarked,
       };
 
@@ -116,6 +119,7 @@ class TransactionModel {
         subcategory: m['subcategory'] ?? '',
         merchant: m['merchant'] ?? '',
         note: m['note'] ?? '',
+        fee: (m['fee'] as num?)?.toDouble() ?? 0.0,
         isBookmarked: m['is_bookmarked'] ?? 0,
       );
 }
@@ -157,7 +161,7 @@ class LoanModel {
 }
 
 // ==========================================
-// 2. STATE REPOSITORY
+// 2. IN-MEMORY STORE REPOSITORY
 // ==========================================
 class AppStore extends ChangeNotifier {
   static final AppStore instance = AppStore._init();
@@ -180,7 +184,7 @@ class AppStore extends ChangeNotifier {
   Future<void> init() async {
     try {
       final docsDir = await getApplicationDocumentsDirectory();
-      final path = p.join(docsDir.path, 'sagars_tracker_v9.db');
+      final path = p.join(docsDir.path, 'sagars_tracker_v11.db');
 
       _db = await openDatabase(
         path,
@@ -189,16 +193,18 @@ class AppStore extends ChangeNotifier {
           await db.execute('CREATE TABLE accounts (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, type TEXT, balance REAL, due_day INTEGER)');
           await db.execute('CREATE TABLE categories (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, type TEXT, emoji TEXT, budget REAL)');
           await db.execute('CREATE TABLE subcategories (id INTEGER PRIMARY KEY AUTOINCREMENT, category_name TEXT, name TEXT)');
-          await db.execute('CREATE TABLE transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT, amount REAL, date TEXT, account_name TEXT, to_account TEXT, category TEXT, subcategory TEXT, merchant TEXT, note TEXT, is_bookmarked INTEGER)');
+          await db.execute('CREATE TABLE transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT, amount REAL, date TEXT, account_name TEXT, to_account TEXT, category TEXT, subcategory TEXT, merchant TEXT, note TEXT, fee REAL, is_bookmarked INTEGER)');
           await db.execute('CREATE TABLE investments (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, category TEXT, invested_amount REAL, current_value REAL)');
           await db.execute('CREATE TABLE loans (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, remaining_balance REAL, emi_amount REAL)');
+          await db.execute('CREATE TABLE merchants (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)');
 
-          // Defaults
+          // Seed Accounts
           await db.insert('accounts', {'name': 'Cash', 'type': 'cash', 'balance': 55666.0, 'due_day': 0});
           await db.insert('accounts', {'name': 'Accounts', 'type': 'bank', 'balance': 52585.0, 'due_day': 0});
           await db.insert('accounts', {'name': 'Card', 'type': 'credit_card', 'balance': 2586.0, 'due_day': 20});
 
-          final defaultExp = [
+          // Seed Expense Categories
+          final expCats = [
             {'name': 'Food', 'emoji': '🍜', 'subs': ['Lunch', 'Dinner', 'Eating out', 'Beverages']},
             {'name': 'Social Life', 'emoji': '🧑‍🤝‍🧑', 'subs': ['Friend', 'Fellowship', 'Alumni', 'Dues']},
             {'name': 'Pets', 'emoji': '🐶', 'subs': []},
@@ -213,14 +219,15 @@ class AppStore extends ChangeNotifier {
             {'name': 'Other', 'emoji': '📦', 'subs': []},
           ];
 
-          for (var c in defaultExp) {
+          for (var c in expCats) {
             await db.insert('categories', {'name': c['name'], 'type': 'expense', 'emoji': c['emoji'], 'budget': 0.0});
             for (var s in (c['subs'] as List<String>)) {
               await db.insert('subcategories', {'category_name': c['name'], 'name': s});
             }
           }
 
-          final defaultInc = [
+          // Seed Income Categories
+          final incCats = [
             {'name': 'Allowance', 'emoji': '🤑', 'subs': ['DA', 'Pocket Money']},
             {'name': 'Salary', 'emoji': '💰', 'subs': []},
             {'name': 'Petty cash', 'emoji': '💵', 'subs': []},
@@ -228,65 +235,46 @@ class AppStore extends ChangeNotifier {
             {'name': 'Other', 'emoji': '📦', 'subs': []},
           ];
 
-          for (var c in defaultInc) {
+          for (var c in incCats) {
             await db.insert('categories', {'name': c['name'], 'type': 'income', 'emoji': c['emoji'], 'budget': 0.0});
             for (var s in (c['subs'] as List<String>)) {
               await db.insert('subcategories', {'category_name': c['name'], 'name': s});
             }
           }
 
+          for (var m in ['Amazon', 'Flipkart', 'Swiggy', 'Zomato', 'Blinkit', 'DMart', 'Uber']) {
+            await db.insert('merchants', {'name': m});
+          }
+
           await db.insert('investments', {'name': 'Flexi Cap Equity Fund', 'category': 'Mutual Fund', 'invested_amount': 75000.0, 'current_value': 92400.0});
           await db.insert('loans', {'name': 'Car Loan', 'remaining_balance': 180000.0, 'emi_amount': 9500.0});
 
+          // Default Transactions
           await db.insert('transactions', {
-            'type': 'expense',
-            'amount': 55666.0,
-            'date': '2026-08-17T12:00:00',
-            'account_name': 'Cash',
-            'category': 'Food',
-            'subcategory': 'Eating out',
-            'merchant': 'Taj Dining',
-            'note': 'Dinner',
-            'is_bookmarked': 0
+            'type': 'expense', 'amount': 55666.0, 'date': '2026-08-17T12:00:00',
+            'account_name': 'Cash', 'to_account': '', 'category': 'Food', 'subcategory': 'Eating out',
+            'merchant': 'Taj Dining', 'note': 'Dinner', 'fee': 0.0, 'is_bookmarked': 0
           });
           await db.insert('transactions', {
-            'type': 'expense',
-            'amount': 52585.0,
-            'date': '2026-08-17T14:30:00',
-            'account_name': 'Accounts',
-            'category': 'Social Life',
-            'subcategory': 'Friend',
-            'merchant': 'Trip',
-            'note': 'Alumni weekend',
-            'is_bookmarked': 0
+            'type': 'expense', 'amount': 52585.0, 'date': '2026-08-17T14:30:00',
+            'account_name': 'Accounts', 'to_account': '', 'category': 'Social Life', 'subcategory': 'Friend',
+            'merchant': 'Trip', 'note': 'Alumni weekend', 'fee': 0.0, 'is_bookmarked': 0
           });
           await db.insert('transactions', {
-            'type': 'expense',
-            'amount': 2586.0,
-            'date': '2026-08-17T15:10:00',
-            'account_name': 'Card',
-            'category': 'Transport',
-            'subcategory': 'Taxi',
-            'merchant': 'Uber',
-            'note': 'Airport ride',
-            'is_bookmarked': 0
+            'type': 'expense', 'amount': 2586.0, 'date': '2026-08-17T15:10:00',
+            'account_name': 'Card', 'to_account': '', 'category': 'Transport', 'subcategory': 'Taxi',
+            'merchant': 'Uber', 'note': 'Airport ride', 'fee': 0.0, 'is_bookmarked': 0
           });
           await db.insert('transactions', {
-            'type': 'income',
-            'amount': 5665.0,
-            'date': '2026-08-17T10:00:00',
-            'account_name': 'Accounts',
-            'category': 'Salary',
-            'subcategory': '',
-            'merchant': 'Payroll',
-            'note': 'Monthly income',
-            'is_bookmarked': 0
+            'type': 'income', 'amount': 5665.0, 'date': '2026-08-17T10:00:00',
+            'account_name': 'Accounts', 'to_account': '', 'category': 'Salary', 'subcategory': '',
+            'merchant': 'Payroll', 'note': 'Monthly retainer', 'fee': 0.0, 'is_bookmarked': 0
           });
         },
       );
       await loadData();
     } catch (e) {
-      debugPrint('DB Error: $e');
+      debugPrint('Database Init Error: $e');
     }
     isReady = true;
     notifyListeners();
@@ -302,6 +290,11 @@ class AppStore extends ChangeNotifier {
 
     final sList = await _db!.query('subcategories');
     subcategories = sList.map((m) => SubcategoryModel.fromMap(m)).toList();
+
+    final mList = await _db!.query('merchants');
+    if (mList.isNotEmpty) {
+      merchants = mList.map((m) => m['name'] as String).toList();
+    }
 
     final tList = await _db!.query('transactions', orderBy: 'date DESC');
     transactions = tList.map((m) => TransactionModel.fromMap(m)).toList();
@@ -326,15 +319,25 @@ class AppStore extends ChangeNotifier {
     } else if (tx.type == 'income') {
       await _db!.rawUpdate('UPDATE accounts SET balance = balance + ? WHERE name = ?', [tx.amount, tx.accountName]);
     } else if (tx.type == 'transfer') {
-      await _db!.rawUpdate('UPDATE accounts SET balance = balance - ? WHERE name = ?', [tx.amount, tx.accountName]);
+      final totalDeduct = tx.amount + tx.fee;
+      await _db!.rawUpdate('UPDATE accounts SET balance = balance - ? WHERE name = ?', [totalDeduct, tx.accountName]);
       await _db!.rawUpdate('UPDATE accounts SET balance = balance + ? WHERE name = ?', [tx.amount, tx.toAccount]);
     }
     await loadData();
   }
 
-  Future<void> deleteTransaction(int id) async {
-    if (_db == null) return;
-    await _db!.delete('transactions', where: 'id = ?', whereArgs: [id]);
+  Future<void> deleteTransaction(TransactionModel tx) async {
+    if (_db == null || tx.id == null) return;
+    await _db!.delete('transactions', where: 'id = ?', whereArgs: [tx.id]);
+    if (tx.type == 'expense') {
+      await _db!.rawUpdate('UPDATE accounts SET balance = balance + ? WHERE name = ?', [tx.amount, tx.accountName]);
+    } else if (tx.type == 'income') {
+      await _db!.rawUpdate('UPDATE accounts SET balance = balance - ? WHERE name = ?', [tx.amount, tx.accountName]);
+    } else if (tx.type == 'transfer') {
+      final totalDeduct = tx.amount + tx.fee;
+      await _db!.rawUpdate('UPDATE accounts SET balance = balance + ? WHERE name = ?', [totalDeduct, tx.accountName]);
+      await _db!.rawUpdate('UPDATE accounts SET balance = balance - ? WHERE name = ?', [tx.amount, tx.toAccount]);
+    }
     await loadData();
   }
 
@@ -369,10 +372,23 @@ class AppStore extends ChangeNotifier {
     await loadData();
   }
 
+  Future<void> addMerchant(String name) async {
+    if (_db == null) return;
+    await _db!.insert('merchants', {'name': name});
+    await loadData();
+  }
+
   Future<void> addAccount(String name, String type, double balance, int dueDay) async {
     if (_db == null) return;
     await _db!.insert('accounts', {'name': name, 'type': type, 'balance': balance, 'due_day': dueDay});
     activeFilterAccounts.add(name);
+    await loadData();
+  }
+
+  Future<void> deleteAccount(int id, String name) async {
+    if (_db == null) return;
+    await _db!.delete('accounts', where: 'id = ?', whereArgs: [id]);
+    activeFilterAccounts.remove(name);
     await loadData();
   }
 
@@ -391,10 +407,11 @@ class AppStore extends ChangeNotifier {
 final inr = NumberFormat.currency(symbol: '₹', locale: 'en_IN', decimalDigits: 2);
 
 // ==========================================
-// 3. ROOT WIDGET
+// 3. MAIN ROOT ENTRY
 // ==========================================
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AppStore.instance.init();
   runApp(const SagarsMoneyTrackerApp());
 }
 
@@ -407,11 +424,12 @@ class SagarsMoneyTrackerApp extends StatelessWidget {
       title: "Sagar's Money Tracker",
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF0A0F1D),
+        scaffoldBackgroundColor: const Color(0xFF0A0F1D), // Midnight Sapphire
+        appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF0A0F1D), elevation: 0),
         colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF00E599),
-          secondary: Color(0xFF38BDF8),
-          error: Color(0xFFFF5252),
+          primary: Color(0xFF00E599), // Electric Emerald for Income
+          secondary: Color(0xFF38BDF8), // Cyan Cobalt for Transfers & Accounts
+          error: Color(0xFFFF5252), // Coral Red for Expense
           surface: Color(0xFF131B2E),
         ),
       ),
@@ -420,6 +438,9 @@ class SagarsMoneyTrackerApp extends StatelessWidget {
   }
 }
 
+// ==========================================
+// 4. ROOT NAVIGATION & TABS
+// ==========================================
 class RootNavigationScreen extends StatefulWidget {
   const RootNavigationScreen({super.key});
 
@@ -431,16 +452,14 @@ class _RootNavigationScreenState extends State<RootNavigationScreen> {
   int _tab = 0;
 
   @override
-  void initState() {
-    super.initState();
-    AppStore.instance.init();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: AppStore.instance,
       builder: (context, _) {
+        if (!AppStore.instance.isReady) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator(color: Color(0xFFFF5252))));
+        }
+
         final List<Widget> pages = [
           const HomeScreenLayout(),
           const StatsScreen(),
@@ -481,7 +500,7 @@ class _RootNavigationScreenState extends State<RootNavigationScreen> {
 }
 
 // ==========================================
-// 4. HOME SCREEN
+// 5. HOME SCREEN (Daily, Calendar, Monthly, Total, Note)
 // ==========================================
 class HomeScreenLayout extends StatefulWidget {
   const HomeScreenLayout({super.key});
@@ -518,8 +537,6 @@ class _HomeScreenLayoutState extends State<HomeScreenLayout> {
       length: 5,
       child: Scaffold(
         appBar: AppBar(
-          backgroundColor: const Color(0xFF0A0F1D),
-          elevation: 0,
           title: Row(
             children: [
               IconButton(
@@ -568,6 +585,7 @@ class _HomeScreenLayoutState extends State<HomeScreenLayout> {
         ),
         body: Column(
           children: [
+            // CC Due Reminder Banner
             if (ccAlerts.isNotEmpty)
               ...ccAlerts.map((cc) {
                 return Container(
@@ -597,6 +615,8 @@ class _HomeScreenLayoutState extends State<HomeScreenLayout> {
                   ),
                 );
               }),
+
+            // Top Stat Ribbon
             Container(
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
               margin: const EdgeInsets.only(top: 8),
@@ -610,85 +630,179 @@ class _HomeScreenLayoutState extends State<HomeScreenLayout> {
                 ],
               ),
             ),
+
+            // Tab Views
             Expanded(
-              child: filteredTxs.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: const [
-                          Icon(Icons.pets, size: 70, color: Colors.white24),
-                          SizedBox(height: 12),
-                          Text('No data available.', style: TextStyle(color: Colors.white38, fontSize: 15)),
-                        ],
-                      ),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
-                      itemCount: filteredTxs.length,
-                      itemBuilder: (ctx, i) {
-                        final t = filteredTxs[i];
-                        return Dismissible(
-                          key: Key(t.id.toString()),
-                          direction: DismissDirection.endToStart,
-                          background: Container(
-                            alignment: Alignment.centerRight,
-                            padding: const EdgeInsets.only(right: 20),
-                            color: const Color(0xFFFF5252),
-                            child: const Icon(Icons.delete, color: Colors.white),
-                          ),
-                          onDismissed: (_) => store.deleteTransaction(t.id!),
-                          child: Card(
-                            color: const Color(0xFF131B2E),
-                            margin: const EdgeInsets.only(bottom: 8),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            child: ListTile(
-                              leading: CircleAvatar(
-                                backgroundColor: const Color(0xFF0A0F1D),
-                                child: Text(t.category.isNotEmpty ? t.category.substring(0, 1) : '₹'),
-                              ),
-                              title: Row(
-                                children: [
-                                  Text(t.type == 'transfer' ? '${t.accountName} → ${t.toAccount}' : t.category, style: const TextStyle(fontWeight: FontWeight.bold)),
-                                  if (t.merchant.isNotEmpty) ...[
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(4)),
-                                      child: Text(t.merchant, style: const TextStyle(fontSize: 10, color: Color(0xFF38BDF8), fontWeight: FontWeight.bold)),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                              subtitle: Text('${t.subcategory.isNotEmpty ? "${t.subcategory} • " : ""}${t.accountName}${t.note.isNotEmpty ? " • ${t.note}" : ""}',
-                                  style: const TextStyle(fontSize: 12, color: Colors.white54)),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    '${t.type == 'income' ? "+" : "-"} ${inr.format(t.amount)}',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 14,
-                                      color: t.type == 'income'
-                                          ? const Color(0xFF00E599)
-                                          : t.type == 'transfer'
-                                              ? const Color(0xFF38BDF8)
-                                              : Colors.white,
-                                    ),
-                                  ),
-                                  IconButton(
-                                    icon: Icon(t.isBookmarked == 1 ? Icons.star : Icons.star_border, size: 18, color: t.isBookmarked == 1 ? Colors.amber : Colors.white24),
-                                    onPressed: () => store.toggleBookmark(t.id!, t.isBookmarked),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+              child: TabBarView(
+                children: [
+                  // 1. Daily View
+                  _buildDailyList(filteredTxs),
+
+                  // 2. Calendar View
+                  _buildCalendarView(filteredTxs),
+
+                  // 3. Monthly View
+                  _buildMonthlySummary(filteredTxs, totalInc, totalExp),
+
+                  // 4. Total View
+                  _buildTotalOverview(store),
+
+                  // 5. Note View
+                  _buildNotesView(filteredTxs),
+                ],
+              ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDailyList(List<TransactionModel> txs) {
+    if (txs.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: const [
+            Icon(Icons.pets, size: 70, color: Colors.white24),
+            SizedBox(height: 12),
+            Text('No data available.', style: TextStyle(color: Colors.white38, fontSize: 15)),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
+      itemCount: txs.length,
+      itemBuilder: (ctx, i) {
+        final t = txs[i];
+        final isInc = t.type == 'income';
+        final isTrans = t.type == 'transfer';
+        final color = isInc ? const Color(0xFF00E599) : isTrans ? const Color(0xFF38BDF8) : Colors.white;
+
+        return Dismissible(
+          key: Key(t.id.toString()),
+          direction: DismissDirection.endToStart,
+          background: Container(
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.only(right: 20),
+            color: const Color(0xFFFF5252),
+            child: const Icon(Icons.delete, color: Colors.white),
+          ),
+          onDismissed: (_) => AppStore.instance.deleteTransaction(t),
+          child: Card(
+            color: const Color(0xFF131B2E),
+            margin: const EdgeInsets.only(bottom: 8),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: const Color(0xFF0A0F1D),
+                child: Text(t.category.isNotEmpty ? t.category.substring(0, 1) : '₹'),
+              ),
+              title: Row(
+                children: [
+                  Text(isTrans ? '${t.accountName} → ${t.toAccount}' : t.category, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  if (t.merchant.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(4)),
+                      child: Text(t.merchant, style: const TextStyle(fontSize: 10, color: Color(0xFF38BDF8), fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ],
+              ),
+              subtitle: Text('${t.subcategory.isNotEmpty ? "${t.subcategory} • " : ""}${t.accountName}${t.note.isNotEmpty ? " • ${t.note}" : ""}',
+                  style: const TextStyle(fontSize: 12, color: Colors.white54)),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '${isInc ? "+" : "-"} ${inr.format(t.amount)}',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: color),
+                  ),
+                  IconButton(
+                    icon: Icon(t.isBookmarked == 1 ? Icons.star : Icons.star_border, size: 18, color: t.isBookmarked == 1 ? Colors.amber : Colors.white24),
+                    onPressed: () => AppStore.instance.toggleBookmark(t.id!, t.isBookmarked),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCalendarView(List<TransactionModel> txs) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.calendar_month, size: 60, color: Color(0xFF38BDF8)),
+            const SizedBox(height: 12),
+            Text('${txs.length} Transactions in ${DateFormat("MMMM yyyy").format(AppStore.instance.selectedMonth)}',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMonthlySummary(List<TransactionModel> txs, double inc, double exp) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Card(
+          color: const Color(0xFF131B2E),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Monthly Net Difference', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                const SizedBox(height: 6),
+                Text(inr.format(inc - exp), style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: inc >= exp ? const Color(0xFF00E599) : const Color(0xFFFF5252))),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTotalOverview(AppStore store) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: store.accounts.map((a) {
+        return Card(
+          color: const Color(0xFF131B2E),
+          margin: const EdgeInsets.only(bottom: 8),
+          child: ListTile(
+            title: Text(a.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text(a.type.toUpperCase()),
+            trailing: Text(inr.format(a.balance), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildNotesView(List<TransactionModel> txs) {
+    final noteTxs = txs.where((t) => t.note.isNotEmpty).toList();
+    if (noteTxs.isEmpty) return const Center(child: Text('No notes recorded this month.', style: TextStyle(color: Colors.white38)));
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: noteTxs.length,
+      itemBuilder: (ctx, i) => Card(
+        color: const Color(0xFF131B2E),
+        child: ListTile(
+          title: Text(noteTxs[i].note, style: const TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: Text('${noteTxs[i].category} • ${inr.format(noteTxs[i].amount)}'),
         ),
       ),
     );
@@ -713,7 +827,7 @@ class _HomeScreenLayoutState extends State<HomeScreenLayout> {
                 accountName: 'Accounts',
                 toAccount: cc.name,
                 merchant: 'Bill Payment',
-                note: 'Full Settlement',
+                note: 'Full CC Settlement',
               ));
               Navigator.pop(ctx);
             },
@@ -736,7 +850,7 @@ class _HomeScreenLayoutState extends State<HomeScreenLayout> {
 }
 
 // ==========================================
-// 5. ADJUSTER SCREEN
+// 6. ADJUSTER FILTER SCREEN (Working Ring Gauges)
 // ==========================================
 class AdjusterFilterScreen extends StatefulWidget {
   const AdjusterFilterScreen({super.key});
@@ -775,9 +889,6 @@ class _AdjusterFilterScreenState extends State<AdjusterFilterScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0A0F1D),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0A0F1D),
-        elevation: 0,
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
         title: Text(DateFormat('MMM yyyy').format(store.selectedMonth), style: const TextStyle(fontWeight: FontWeight.bold)),
         actions: [IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context))],
       ),
@@ -908,7 +1019,7 @@ class _AdjusterFilterScreenState extends State<AdjusterFilterScreen> {
 }
 
 // ==========================================
-// 6. STATS TAB
+// 7. STATS & ANALYTICS TAB (Donut & Item Breakdown)
 // ==========================================
 class StatsScreen extends StatelessWidget {
   const StatsScreen({super.key});
@@ -935,8 +1046,6 @@ class StatsScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0A0F1D),
-        elevation: 0,
         title: Text(DateFormat('MMM yyyy').format(store.selectedMonth), style: const TextStyle(fontWeight: FontWeight.bold)),
       ),
       body: ListView(
@@ -1003,7 +1112,7 @@ class StatsScreen extends StatelessWidget {
 }
 
 // ==========================================
-// 7. ACCOUNTS & WEALTH TAB
+// 8. UNIFIED ACCOUNTS & WEALTH TAB (Option A)
 // ==========================================
 class AccountsWealthScreen extends StatelessWidget {
   const AccountsWealthScreen({super.key});
@@ -1023,8 +1132,6 @@ class AccountsWealthScreen extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           title: Text('Net Worth: ${inr.format(netWorth)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF00E599))),
-          backgroundColor: const Color(0xFF0A0F1D),
-          elevation: 0,
           actions: [
             IconButton(
               icon: const Icon(Icons.add_card, color: Color(0xFF00E599)),
@@ -1142,7 +1249,7 @@ class AccountsWealthScreen extends StatelessWidget {
 }
 
 // ==========================================
-// 8. CONFIGURATION & MORE TAB
+// 9. CONFIGURATION & MORE TAB
 // ==========================================
 class MoreOptionsScreen extends StatelessWidget {
   const MoreOptionsScreen({super.key});
@@ -1150,7 +1257,7 @@ class MoreOptionsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Configuration'), backgroundColor: const Color(0xFF0A0F1D), elevation: 0),
+      appBar: AppBar(title: const Text('Configuration')),
       body: ListView(
         children: [
           _sectionHeader('Category / Repeat'),
@@ -1163,6 +1270,11 @@ class MoreOptionsScreen extends StatelessWidget {
             title: const Text('Expenses Category Setting'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CategoryManagerScreen(type: 'expense'))),
+          ),
+          ListTile(
+            title: const Text('Manage Merchants'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MerchantManagerScreen())),
           ),
           _sectionHeader('Data & Export'),
           ListTile(
@@ -1205,6 +1317,55 @@ class MoreOptionsScreen extends StatelessWidget {
   }
 }
 
+class MerchantManagerScreen extends StatelessWidget {
+  const MerchantManagerScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final store = AppStore.instance;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Manage Merchants'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: () {
+              final ctrl = TextEditingController();
+              showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  backgroundColor: const Color(0xFF131B2E),
+                  title: const Text('Add Merchant'),
+                  content: TextField(controller: ctrl, decoration: const InputDecoration(labelText: 'Merchant Name')),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E599)),
+                      onPressed: () {
+                        if (ctrl.text.isNotEmpty) {
+                          store.addMerchant(ctrl.text);
+                          Navigator.pop(ctx);
+                        }
+                      },
+                      child: const Text('Add', style: TextStyle(color: Colors.black)),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+      body: ListView.builder(
+        itemCount: store.merchants.length,
+        itemBuilder: (ctx, i) => ListTile(
+          title: Text(store.merchants[i]),
+        ),
+      ),
+    );
+  }
+}
+
 class CategoryManagerScreen extends StatefulWidget {
   final String type;
   const CategoryManagerScreen({super.key, required this.type});
@@ -1222,7 +1383,6 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0A0F1D),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0A0F1D),
         title: Text(widget.type == 'expense' ? 'Expenses Category' : 'Income Category', style: const TextStyle(fontWeight: FontWeight.bold)),
         actions: [
           IconButton(icon: const Icon(Icons.add), onPressed: () => _showAddCategoryDialog(context)),
@@ -1306,7 +1466,6 @@ class SubcategoryManagerScreen extends StatelessWidget {
       backgroundColor: const Color(0xFF0A0F1D),
       appBar: AppBar(
         title: Text('$categoryName Subcategories'),
-        backgroundColor: const Color(0xFF0A0F1D),
         actions: [
           IconButton(icon: const Icon(Icons.add), onPressed: () => _showAddSubDialog(context)),
         ],
@@ -1354,7 +1513,7 @@ class SubcategoryManagerScreen extends StatelessWidget {
 }
 
 // ==========================================
-// 9. SEARCH DELEGATE
+// 10. SEARCH DELEGATE
 // ==========================================
 class TransactionSearchDelegate extends SearchDelegate {
   final List<TransactionModel> txs;
@@ -1399,7 +1558,7 @@ class TransactionSearchDelegate extends SearchDelegate {
 }
 
 // ==========================================
-// 10. ENTRY SCREEN (Split + Merchant + Fixed Screen Range)
+// 11. EXPENSE / INCOME / TRANSFER ENTRY (Fixed Form)
 // ==========================================
 class ExpenseEntryScreen extends StatefulWidget {
   const ExpenseEntryScreen({super.key});
@@ -1434,9 +1593,6 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0A0F1D),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0A0F1D),
-        elevation: 0,
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
         title: Text(_type == 'expense' ? 'Expense' : _type == 'income' ? 'Income' : 'Transfer', style: const TextStyle(fontWeight: FontWeight.bold)),
       ),
       body: SafeArea(
@@ -1471,6 +1627,8 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
                         style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _totalAmountStr.isEmpty ? Colors.white38 : Colors.white)),
                     onTap: () => setState(() => _bottomPanel = 'keypad'),
                   ),
+
+                  // Dedicated Transfer Form
                   if (_type == 'transfer') ...[
                     _formRow(
                       label: 'From Account',
@@ -1495,6 +1653,8 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
                       onTap: () => setState(() => _bottomPanel = 'none'),
                     ),
                   ],
+
+                  // Expense / Income Form
                   if (_type != 'transfer') ...[
                     _formRow(
                       label: 'Merchant',
@@ -1523,6 +1683,7 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
                       ),
                       onTap: () => setState(() => _bottomPanel = 'none'),
                     ),
+
                     if (_type == 'expense') ...[
                       Container(
                         margin: const EdgeInsets.symmetric(vertical: 8),
@@ -1579,6 +1740,7 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
                         ),
                       ],
                     ],
+
                     if (!_isSplitMode)
                       _formRow(
                         label: 'Category',
@@ -1593,6 +1755,7 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
                         ),
                         onTap: () => setState(() => _bottomPanel = 'category'),
                       ),
+
                     _formRow(
                       label: 'Account',
                       isActive: _bottomPanel == 'account',
@@ -1600,6 +1763,7 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
                       onTap: () => setState(() => _bottomPanel = 'account'),
                     ),
                   ],
+
                   _formRow(
                     label: 'Note',
                     widget: TextField(
@@ -1609,7 +1773,9 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
                     ),
                     onTap: () => setState(() => _bottomPanel = 'none'),
                   ),
+
                   const SizedBox(height: 20),
+
                   Row(
                     children: [
                       Expanded(
@@ -1966,12 +2132,14 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
     if (totalAmt <= 0) return;
 
     if (_type == 'transfer') {
+      final fee = double.tryParse(_feeController.text) ?? 0.0;
       await AppStore.instance.addTransaction(TransactionModel(
         type: 'transfer',
         amount: totalAmt,
         date: _date,
         accountName: _selectedAccount,
         toAccount: _selectedToAccount,
+        fee: fee,
         note: _noteController.text,
       ));
     } else if (_isSplitMode && _splitItems.isNotEmpty) {
