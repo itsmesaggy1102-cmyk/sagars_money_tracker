@@ -2,15 +2,17 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:csv/csv.dart';
 
-// ==========================================
+// ============================================================================
 // 1. DATA MODELS & JSON SERIALIZATION
-// ==========================================
+// ============================================================================
+
 class AccountModel {
   String id;
   String name;
@@ -18,9 +20,22 @@ class AccountModel {
   double balance;
   int dueDay;
 
-  AccountModel({required this.id, required this.name, required this.type, required this.balance, this.dueDay = 0});
+  AccountModel({
+    required this.id,
+    required this.name,
+    required this.type,
+    required this.balance,
+    this.dueDay = 0,
+  });
 
-  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'type': type, 'balance': balance, 'due_day': dueDay};
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'type': type,
+        'balance': balance,
+        'due_day': dueDay,
+      };
+
   factory AccountModel.fromJson(Map<String, dynamic> j) => AccountModel(
         id: j['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
         name: j['name'] ?? '',
@@ -37,15 +52,31 @@ class CategoryModel {
   String emoji;
   List<String> subcategories;
 
-  CategoryModel({required this.id, required this.name, required this.type, required this.emoji, required this.subcategories});
+  CategoryModel({
+    required this.id,
+    required this.name,
+    required this.type,
+    required this.emoji,
+    required this.subcategories,
+  });
 
-  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'type': type, 'emoji': emoji, 'subcategories': subcategories};
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'type': type,
+        'emoji': emoji,
+        'subcategories': subcategories,
+      };
+
   factory CategoryModel.fromJson(Map<String, dynamic> j) => CategoryModel(
         id: j['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
         name: j['name'] ?? '',
         type: j['type'] ?? 'expense',
         emoji: j['emoji'] ?? '📦',
-        subcategories: (j['subcategories'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+        subcategories: (j['subcategories'] as List<dynamic>?)
+                ?.map((e) => e.toString())
+                .toList() ??
+            [],
       );
 }
 
@@ -116,11 +147,24 @@ class InvestmentModel {
   double invested;
   double current;
 
-  InvestmentModel({required this.id, required this.name, required this.category, required this.invested, required this.current});
+  InvestmentModel({
+    required this.id,
+    required this.name,
+    required this.category,
+    required this.invested,
+    required this.current,
+  });
 
-  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'category': category, 'invested': invested, 'current': current};
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'category': category,
+        'invested': invested,
+        'current': current,
+      };
+
   factory InvestmentModel.fromJson(Map<String, dynamic> j) => InvestmentModel(
-        id: j['id'] ?? '',
+        id: j['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
         name: j['name'] ?? '',
         category: j['category'] ?? 'Mutual Fund',
         invested: (j['invested'] as num?)?.toDouble() ?? 0.0,
@@ -134,20 +178,32 @@ class LoanModel {
   double remaining;
   double emi;
 
-  LoanModel({required this.id, required this.name, required this.remaining, required this.emi});
+  LoanModel({
+    required this.id,
+    required this.name,
+    required this.remaining,
+    required this.emi,
+  });
 
-  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'remaining': remaining, 'emi': emi};
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'remaining': remaining,
+        'emi': emi,
+      };
+
   factory LoanModel.fromJson(Map<String, dynamic> j) => LoanModel(
-        id: j['id'] ?? '',
+        id: j['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
         name: j['name'] ?? '',
         remaining: (j['remaining'] as num?)?.toDouble() ?? 0.0,
         emi: (j['emi'] as num?)?.toDouble() ?? 0.0,
       );
 }
 
-// ==========================================
-// 2. PERSISTENT STORE (In-Memory + SharedPreferences)
-// ==========================================
+// ============================================================================
+// 2. IN-MEMORY REACTIVE APP STORE (SharedPreferences Backed)
+// ============================================================================
+
 class AppStore extends ChangeNotifier {
   static final AppStore instance = AppStore._init();
   AppStore._init();
@@ -167,9 +223,12 @@ class AppStore extends ChangeNotifier {
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
 
+    // Accounts
     final rawAccs = _prefs.getString('tracker_accounts');
     if (rawAccs != null) {
-      accounts = (jsonDecode(rawAccs) as List).map((e) => AccountModel.fromJson(e)).toList();
+      accounts = (jsonDecode(rawAccs) as List)
+          .map((e) => AccountModel.fromJson(e))
+          .toList();
     } else {
       accounts = [
         AccountModel(id: '1', name: 'Cash', type: 'cash', balance: 55666.0),
@@ -179,9 +238,12 @@ class AppStore extends ChangeNotifier {
       _saveAccounts();
     }
 
+    // Categories
     final rawCats = _prefs.getString('tracker_categories');
     if (rawCats != null) {
-      categories = (jsonDecode(rawCats) as List).map((e) => CategoryModel.fromJson(e)).toList();
+      categories = (jsonDecode(rawCats) as List)
+          .map((e) => CategoryModel.fromJson(e))
+          .toList();
     } else {
       categories = [
         CategoryModel(id: '1', name: 'Food', type: 'expense', emoji: '🍜', subcategories: ['Lunch', 'Dinner', 'Eating out', 'Beverages']),
@@ -205,6 +267,7 @@ class AppStore extends ChangeNotifier {
       _saveCategories();
     }
 
+    // Merchants
     final rawMerchants = _prefs.getStringList('tracker_merchants');
     if (rawMerchants != null) {
       merchants = rawMerchants;
@@ -213,25 +276,37 @@ class AppStore extends ChangeNotifier {
       _saveMerchants();
     }
 
+    // Investments & Loans
     final rawInv = _prefs.getString('tracker_investments');
     if (rawInv != null) {
-      investments = (jsonDecode(rawInv) as List).map((e) => InvestmentModel.fromJson(e)).toList();
+      investments = (jsonDecode(rawInv) as List)
+          .map((e) => InvestmentModel.fromJson(e))
+          .toList();
     } else {
-      investments = [InvestmentModel(id: '1', name: 'Flexi Cap Equity Fund', category: 'Mutual Fund', invested: 75000.0, current: 92400.0)];
+      investments = [
+        InvestmentModel(id: '1', name: 'Flexi Cap Equity Fund', category: 'Mutual Fund', invested: 75000.0, current: 92400.0),
+      ];
       _saveInvestments();
     }
 
     final rawLoans = _prefs.getString('tracker_loans');
     if (rawLoans != null) {
-      loans = (jsonDecode(rawLoans) as List).map((e) => LoanModel.fromJson(e)).toList();
+      loans = (jsonDecode(rawLoans) as List)
+          .map((e) => LoanModel.fromJson(e))
+          .toList();
     } else {
-      loans = [LoanModel(id: '1', name: 'Car Loan', remaining: 180000.0, emi: 9500.0)];
+      loans = [
+        LoanModel(id: '1', name: 'Car Loan', remaining: 180000.0, emi: 9500.0),
+      ];
       _saveLoans();
     }
 
+    // Transactions
     final rawTxs = _prefs.getString('tracker_transactions');
     if (rawTxs != null) {
-      transactions = (jsonDecode(rawTxs) as List).map((e) => TransactionModel.fromJson(e)).toList();
+      transactions = (jsonDecode(rawTxs) as List)
+          .map((e) => TransactionModel.fromJson(e))
+          .toList();
     } else {
       transactions = [
         TransactionModel(id: '1', type: 'expense', amount: 55666.0, date: DateTime(2026, 8, 17, 12, 0), accountName: 'Cash', category: 'Food', subcategory: 'Eating out', merchant: 'Taj Dining', note: 'Dinner'),
@@ -279,7 +354,7 @@ class AppStore extends ChangeNotifier {
         a.balance -= tx.amount;
       } else if (tx.type == 'transfer') {
         if (a.name == tx.accountName) a.balance += (tx.amount + tx.fee);
-        if (a.name == tx.toAccount) a.balance += tx.amount;
+        if (a.name == tx.toAccount) a.balance -= tx.amount;
       }
     }
     _saveAccounts();
@@ -296,7 +371,13 @@ class AppStore extends ChangeNotifier {
   }
 
   void addCategory(String name, String type, String emoji) {
-    categories.add(CategoryModel(id: DateTime.now().millisecondsSinceEpoch.toString(), name: name, type: type, emoji: emoji, subcategories: []));
+    categories.add(CategoryModel(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: name,
+      type: type,
+      emoji: emoji,
+      subcategories: [],
+    ));
     _saveCategories();
     notifyListeners();
   }
@@ -336,9 +417,38 @@ class AppStore extends ChangeNotifier {
   }
 
   void addAccount(String name, String type, double balance, int dueDay) {
-    accounts.add(AccountModel(id: DateTime.now().millisecondsSinceEpoch.toString(), name: name, type: type, balance: balance, dueDay: dueDay));
+    accounts.add(AccountModel(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: name,
+      type: type,
+      balance: balance,
+      dueDay: dueDay,
+    ));
     activeFilterAccounts.add(name);
     _saveAccounts();
+    notifyListeners();
+  }
+
+  void addInvestment(String name, String category, double invested, double current) {
+    investments.add(InvestmentModel(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: name,
+      category: category,
+      invested: invested,
+      current: current,
+    ));
+    _saveInvestments();
+    notifyListeners();
+  }
+
+  void addLoan(String name, double remaining, double emi) {
+    loans.add(LoanModel(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: name,
+      remaining: remaining,
+      emi: emi,
+    ));
+    _saveLoans();
     notifyListeners();
   }
 
@@ -351,9 +461,10 @@ class AppStore extends ChangeNotifier {
 
 final inr = NumberFormat.currency(symbol: '₹', locale: 'en_IN', decimalDigits: 2);
 
-// ==========================================
+// ============================================================================
 // 3. MAIN APP BOOTSTRAP
-// ==========================================
+// ============================================================================
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AppStore.instance.init();
@@ -371,6 +482,7 @@ class SagarsMoneyTrackerApp extends StatelessWidget {
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF0A0F1D),
         appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF0A0F1D), elevation: 0),
+        textTheme: GoogleFonts.dmSansTextTheme(ThemeData.dark().textTheme),
         colorScheme: const ColorScheme.dark(
           primary: Color(0xFF00E599),
           secondary: Color(0xFF38BDF8),
@@ -383,9 +495,10 @@ class SagarsMoneyTrackerApp extends StatelessWidget {
   }
 }
 
-// ==========================================
-// 4. BOTTOM TABS CONTROLLER
-// ==========================================
+// ============================================================================
+// 4. BOTTOM TABS CONTROLLER (4 Primary Tabs + Centered FAB)
+// ============================================================================
+
 class RootNavigationScreen extends StatefulWidget {
   const RootNavigationScreen({super.key});
   @override
@@ -414,7 +527,10 @@ class _RootNavigationScreenState extends State<RootNavigationScreen> {
             backgroundColor: const Color(0xFFFF5252),
             shape: const CircleBorder(),
             child: const Icon(Icons.add, size: 32, color: Colors.white),
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpenseEntryScreen())),
+            onPressed: () {
+              HapticFeedback.mediumImpact();
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpenseEntryScreen()));
+            },
           ),
           bottomNavigationBar: BottomNavigationBar(
             currentIndex: _tab,
@@ -436,9 +552,10 @@ class _RootNavigationScreenState extends State<RootNavigationScreen> {
   }
 }
 
-// ==========================================
+// ============================================================================
 // 5. HOME SCREEN (5 Sub-Tabs: Daily, Calendar, Monthly, Total, Note)
-// ==========================================
+// ============================================================================
+
 class HomeScreenLayout extends StatefulWidget {
   const HomeScreenLayout({super.key});
   @override
@@ -466,7 +583,9 @@ class _HomeScreenLayoutState extends State<HomeScreenLayout> {
       if (t.type == 'expense') totalExp += t.amount;
     }
 
-    List<AccountModel> ccAlerts = store.accounts.where((a) => a.type == 'credit_card' && a.balance > 0 && a.dueDay > 0).toList();
+    List<AccountModel> ccAlerts = store.accounts
+        .where((a) => a.type == 'credit_card' && a.balance > 0 && a.dueDay > 0)
+        .toList();
 
     return DefaultTabController(
       length: 5,
@@ -558,15 +677,10 @@ class _HomeScreenLayoutState extends State<HomeScreenLayout> {
             Expanded(
               child: TabBarView(
                 children: [
-                  // 1. Daily
                   _buildDailyTab(filteredTxs, store),
-                  // 2. Calendar
                   _buildCalendarTab(filteredTxs, store),
-                  // 3. Monthly
                   _buildMonthlyTab(totalInc, totalExp),
-                  // 4. Total
                   _buildTotalTab(store),
-                  // 5. Note
                   _buildNoteTab(filteredTxs),
                 ],
               ),
@@ -593,7 +707,12 @@ class _HomeScreenLayoutState extends State<HomeScreenLayout> {
         return Dismissible(
           key: Key(t.id),
           direction: DismissDirection.endToStart,
-          background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), color: const Color(0xFFFF5252), child: const Icon(Icons.delete, color: Colors.white)),
+          background: Container(
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.only(right: 20),
+            color: const Color(0xFFFF5252),
+            child: const Icon(Icons.delete, color: Colors.white),
+          ),
           onDismissed: (_) => store.deleteTransaction(t),
           child: Card(
             color: const Color(0xFF131B2E),
@@ -653,7 +772,14 @@ class _HomeScreenLayoutState extends State<HomeScreenLayout> {
               children: [
                 const Text('Monthly Net Balance', style: TextStyle(color: Colors.white54)),
                 const SizedBox(height: 6),
-                Text(inr.format(totalInc - totalExp), style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: totalInc >= totalExp ? const Color(0xFF00E599) : const Color(0xFFFF5252))),
+                Text(
+                  inr.format(totalInc - totalExp),
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: totalInc >= totalExp ? const Color(0xFF00E599) : const Color(0xFFFF5252),
+                  ),
+                ),
               ],
             ),
           ),
@@ -663,11 +789,10 @@ class _HomeScreenLayoutState extends State<HomeScreenLayout> {
   }
 
   Widget _buildTotalTab(AppStore store) {
-    final List<Widget> cards = [];
-    for (int i = 0; i < store.accounts.length; i++) {
-      final a = store.accounts[i];
-      cards.add(
-        Card(
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: store.accounts.map((a) {
+        return Card(
           color: const Color(0xFF131B2E),
           margin: const EdgeInsets.only(bottom: 8),
           child: ListTile(
@@ -675,12 +800,8 @@ class _HomeScreenLayoutState extends State<HomeScreenLayout> {
             subtitle: Text(a.type.toUpperCase()),
             trailing: Text(inr.format(a.balance), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           ),
-        ),
-      );
-    }
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: cards,
+        );
+      }).toList(),
     );
   }
 
@@ -694,7 +815,10 @@ class _HomeScreenLayoutState extends State<HomeScreenLayout> {
       itemCount: noteTxs.length,
       itemBuilder: (ctx, i) => Card(
         color: const Color(0xFF131B2E),
-        child: ListTile(title: Text(noteTxs[i].note, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text('${noteTxs[i].category} • ${inr.format(noteTxs[i].amount)}')),
+        child: ListTile(
+          title: Text(noteTxs[i].note, style: const TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: Text('${noteTxs[i].category} • ${inr.format(noteTxs[i].amount)}'),
+        ),
       ),
     );
   }
@@ -733,9 +857,10 @@ class _HomeScreenLayoutState extends State<HomeScreenLayout> {
   Widget _stat(String l, String v, Color c) => Column(children: [Text(l, style: TextStyle(color: c, fontSize: 12)), const SizedBox(height: 4), Text(v, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15))]);
 }
 
-// ==========================================
-// 6. ADJUSTER SCREEN
-// ==========================================
+// ============================================================================
+// 6. ADJUSTER FILTER SCREEN (Working Circular Gauges & Account Filters)
+// ============================================================================
+
 class AdjusterFilterScreen extends StatefulWidget {
   const AdjusterFilterScreen({super.key});
   @override
@@ -762,7 +887,10 @@ class _AdjusterFilterScreenState extends State<AdjusterFilterScreen> {
     int incPct = totalMonthInc > 0 ? ((filterInc / totalMonthInc) * 100).round() : 0;
 
     return Scaffold(
-      appBar: AppBar(title: Text(DateFormat('MMM yyyy').format(store.selectedMonth)), actions: [IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context))]),
+      appBar: AppBar(
+        title: Text(DateFormat('MMM yyyy').format(store.selectedMonth)),
+        actions: [IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context))],
+      ),
       body: Column(
         children: [
           Padding(
@@ -820,7 +948,16 @@ class _AdjusterFilterScreenState extends State<AdjusterFilterScreen> {
           Stack(
             alignment: Alignment.center,
             children: [
-              SizedBox(width: 65, height: 65, child: CircularProgressIndicator(value: pct / 100.0, strokeWidth: 6, backgroundColor: c.withOpacity(0.15), valueColor: AlwaysStoppedAnimation<Color>(c))),
+              SizedBox(
+                width: 65,
+                height: 65,
+                child: CircularProgressIndicator(
+                  value: pct / 100.0,
+                  strokeWidth: 6,
+                  backgroundColor: c.withOpacity(0.15),
+                  valueColor: AlwaysStoppedAnimation<Color>(c),
+                ),
+              ),
               Text('$pct%', style: const TextStyle(fontWeight: FontWeight.bold)),
             ],
           ),
@@ -830,9 +967,10 @@ class _AdjusterFilterScreenState extends State<AdjusterFilterScreen> {
       );
 }
 
-// ==========================================
-// 7. STATS & ANALYTICS TAB
-// ==========================================
+// ============================================================================
+// 7. STATS & ANALYTICS TAB (Donut Breakdown & Category Ranks)
+// ============================================================================
+
 class StatsScreen extends StatelessWidget {
   const StatsScreen({super.key});
 
@@ -913,9 +1051,10 @@ class StatsScreen extends StatelessWidget {
   }
 }
 
-// ==========================================
-// 8. UNIFIED ACCOUNTS & WEALTH TAB
-// ==========================================
+// ============================================================================
+// 8. UNIFIED WEALTH & ACCOUNTS HUB (Net Worth + 3 Segmented Tabs)
+// ============================================================================
+
 class AccountsWealthScreen extends StatelessWidget {
   const AccountsWealthScreen({super.key});
 
@@ -965,27 +1104,47 @@ class AccountsWealthScreen extends StatelessWidget {
             ),
             ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-              children: store.investments.map((i) => Card(
-                    color: const Color(0xFF131B2E),
-                    margin: const EdgeInsets.only(bottom: 8),
-                    child: ListTile(
-                      title: Text(i.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text('Invested: ${inr.format(i.invested)}'),
-                      trailing: Text(inr.format(i.current), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF00E599))),
-                    ),
-                  )).toList(),
+              children: [
+                ...store.investments.map((i) => Card(
+                      color: const Color(0xFF131B2E),
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        title: Text(i.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text('Invested: ${inr.format(i.invested)}'),
+                        trailing: Text(inr.format(i.current), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF00E599))),
+                      ),
+                    )),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.add, color: Color(0xFF00E599)),
+                    label: const Text('Add Investment / SIP', style: TextStyle(color: Color(0xFF00E599))),
+                    onPressed: () => _showAddInvestmentDialog(context),
+                  ),
+                ),
+              ],
             ),
             ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-              children: store.loans.map((l) => Card(
-                    color: const Color(0xFF131B2E),
-                    margin: const EdgeInsets.only(bottom: 8),
-                    child: ListTile(
-                      title: Text(l.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text('EMI: ${inr.format(l.emi)}'),
-                      trailing: Text(inr.format(l.remaining), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFFFF5252))),
-                    ),
-                  )).toList(),
+              children: [
+                ...store.loans.map((l) => Card(
+                      color: const Color(0xFF131B2E),
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        title: Text(l.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text('EMI: ${inr.format(l.emi)}'),
+                        trailing: Text(inr.format(l.remaining), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFFFF5252))),
+                      ),
+                    )),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.add, color: Color(0xFFFF5252)),
+                    label: const Text('Add Loan / Debt', style: TextStyle(color: Color(0xFFFF5252))),
+                    onPressed: () => _showAddLoanDialog(context),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -1006,7 +1165,7 @@ class AccountsWealthScreen extends StatelessWidget {
           backgroundColor: const Color(0xFF131B2E),
           title: const Text('Add Account / Card'),
           content: Column(
-            mainAxisSize: dynamicCount(),
+            mainAxisSize: MainAxisSize.min,
             children: [
               TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Account Name')),
               const SizedBox(height: 8),
@@ -1048,12 +1207,87 @@ class AccountsWealthScreen extends StatelessWidget {
     );
   }
 
-  MainAxisSize dynamicCount() => MainAxisSize.min;
+  void _showAddInvestmentDialog(BuildContext context) {
+    final nameCtrl = TextEditingController();
+    final catCtrl = TextEditingController(text: 'Mutual Fund');
+    final invCtrl = TextEditingController();
+    final curCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF131B2E),
+        title: const Text('Add Investment'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Investment Name')),
+            TextField(controller: catCtrl, decoration: const InputDecoration(labelText: 'Category (e.g. Stocks, Gold)')),
+            TextField(controller: invCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Invested Amount (₹)')),
+            TextField(controller: curCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Current Value (₹)')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E599)),
+            onPressed: () {
+              if (nameCtrl.text.isNotEmpty) {
+                final inv = double.tryParse(invCtrl.text) ?? 0.0;
+                final cur = double.tryParse(curCtrl.text) ?? inv;
+                AppStore.instance.addInvestment(nameCtrl.text, catCtrl.text, inv, cur);
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('Save', style: TextStyle(color: Colors.black)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddLoanDialog(BuildContext context) {
+    final nameCtrl = TextEditingController();
+    final remCtrl = TextEditingController();
+    final emiCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF131B2E),
+        title: const Text('Add Loan / Debt'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Loan Name')),
+            TextField(controller: remCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Remaining Principal (₹)')),
+            TextField(controller: emiCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Monthly EMI (₹)')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF5252)),
+            onPressed: () {
+              if (nameCtrl.text.isNotEmpty) {
+                final rem = double.tryParse(remCtrl.text) ?? 0.0;
+                final emi = double.tryParse(emiCtrl.text) ?? 0.0;
+                AppStore.instance.addLoan(nameCtrl.text, rem, emi);
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('Save', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-// ==========================================
-// 9. CONFIGURATION & MORE TAB
-// ==========================================
+// ============================================================================
+// 9. CONFIGURATION & MORE TAB (Categories, Merchants, CSV Export)
+// ============================================================================
+
 class MoreOptionsScreen extends StatelessWidget {
   const MoreOptionsScreen({super.key});
 
@@ -1275,9 +1509,10 @@ class SubcategoryManagerScreen extends StatelessWidget {
   }
 }
 
-// ==========================================
+// ============================================================================
 // 10. SEARCH DELEGATE
-// ==========================================
+// ============================================================================
+
 class TransactionSearchDelegate extends SearchDelegate {
   final List<TransactionModel> txs;
   TransactionSearchDelegate({required this.txs});
@@ -1309,9 +1544,10 @@ class TransactionSearchDelegate extends SearchDelegate {
   }
 }
 
-// ==========================================
-// 11. ENTRY SCREEN
-// ==========================================
+// ============================================================================
+// 11. TRANSACTION ENTRY SCREEN (Split Cart, Keypad & Modals)
+// ============================================================================
+
 class ExpenseEntryScreen extends StatefulWidget {
   const ExpenseEntryScreen({super.key});
   @override
