@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
@@ -147,7 +146,7 @@ class LoanModel {
 }
 
 // ==========================================
-// 2. GUARANTEED PERSISTENT STORE (In-Memory + SharedPreferences)
+// 2. PERSISTENT STORE (In-Memory + SharedPreferences)
 // ==========================================
 class AppStore extends ChangeNotifier {
   static final AppStore instance = AppStore._init();
@@ -168,7 +167,6 @@ class AppStore extends ChangeNotifier {
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
 
-    // 1. Accounts
     final rawAccs = _prefs.getString('tracker_accounts');
     if (rawAccs != null) {
       accounts = (jsonDecode(rawAccs) as List).map((e) => AccountModel.fromJson(e)).toList();
@@ -181,7 +179,6 @@ class AppStore extends ChangeNotifier {
       _saveAccounts();
     }
 
-    // 2. Categories
     final rawCats = _prefs.getString('tracker_categories');
     if (rawCats != null) {
       categories = (jsonDecode(rawCats) as List).map((e) => CategoryModel.fromJson(e)).toList();
@@ -208,7 +205,6 @@ class AppStore extends ChangeNotifier {
       _saveCategories();
     }
 
-    // 3. Merchants
     final rawMerchants = _prefs.getStringList('tracker_merchants');
     if (rawMerchants != null) {
       merchants = rawMerchants;
@@ -217,7 +213,6 @@ class AppStore extends ChangeNotifier {
       _saveMerchants();
     }
 
-    // 4. Investments & Loans
     final rawInv = _prefs.getString('tracker_investments');
     if (rawInv != null) {
       investments = (jsonDecode(rawInv) as List).map((e) => InvestmentModel.fromJson(e)).toList();
@@ -234,7 +229,6 @@ class AppStore extends ChangeNotifier {
       _saveLoans();
     }
 
-    // 5. Transactions
     final rawTxs = _prefs.getString('tracker_transactions');
     if (rawTxs != null) {
       transactions = (jsonDecode(rawTxs) as List).map((e) => TransactionModel.fromJson(e)).toList();
@@ -375,7 +369,7 @@ class SagarsMoneyTrackerApp extends StatelessWidget {
       title: "Sagar's Money Tracker",
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF0A0F1D), // Midnight Navy
+        scaffoldBackgroundColor: const Color(0xFF0A0F1D),
         appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF0A0F1D), elevation: 0),
         colorScheme: const ColorScheme.dark(
           primary: Color(0xFF00E599),
@@ -443,7 +437,7 @@ class _RootNavigationScreenState extends State<RootNavigationScreen> {
 }
 
 // ==========================================
-// 5. HOME SCREEN (All 5 Sub-Tabs: Daily, Calendar, Monthly, Total, Note)
+// 5. HOME SCREEN (5 Sub-Tabs: Daily, Calendar, Monthly, Total, Note)
 // ==========================================
 class HomeScreenLayout extends StatefulWidget {
   const HomeScreenLayout({super.key});
@@ -472,7 +466,6 @@ class _HomeScreenLayoutState extends State<HomeScreenLayout> {
       if (t.type == 'expense') totalExp += t.amount;
     }
 
-    final now = DateTime.now();
     List<AccountModel> ccAlerts = store.accounts.where((a) => a.type == 'credit_card' && a.balance > 0 && a.dueDay > 0).toList();
 
     return DefaultTabController(
@@ -1274,7 +1267,7 @@ class TransactionSearchDelegate extends SearchDelegate {
 }
 
 // ==========================================
-// 11. ENTRY SCREEN (Fixed Screen Range + Responsive Bottom Modal Sheets)
+// 11. ENTRY SCREEN (Split + Merchant + Bottom Sheet Selectors)
 // ==========================================
 class ExpenseEntryScreen extends StatefulWidget {
   const ExpenseEntryScreen({super.key});
@@ -1300,7 +1293,6 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final store = AppStore.instance;
     final primaryColor = _type == 'expense' ? const Color(0xFFFF5252) : _type == 'income' ? const Color(0xFF00E599) : const Color(0xFF38BDF8);
 
     return Scaffold(
@@ -1419,7 +1411,9 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
-        border: const Border(bottom: BorderSide(color: Color(0xFF1E293B))),
+        decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: Color(0xFF1E293B))),
+        ),
         child: Row(
           children: [
             SizedBox(width: 110, child: Text(label, style: const TextStyle(color: Colors.white54))),
