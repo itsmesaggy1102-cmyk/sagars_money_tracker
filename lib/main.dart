@@ -437,7 +437,7 @@ class _RootNavigationScreenState extends State<RootNavigationScreen> {
 }
 
 // ==========================================
-// 5. HOME SCREEN (5 Sub-Tabs)
+// 5. HOME SCREEN (5 Sub-Tabs: Daily, Calendar, Monthly, Total, Note)
 // ==========================================
 class HomeScreenLayout extends StatefulWidget {
   const HomeScreenLayout({super.key});
@@ -559,108 +559,142 @@ class _HomeScreenLayoutState extends State<HomeScreenLayout> {
               child: TabBarView(
                 children: [
                   // 1. Daily
-                  filteredTxs.isEmpty
-                      ? const Center(child: Text('No data available.', style: TextStyle(color: Colors.white38)))
-                      : ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
-                          itemCount: filteredTxs.length,
-                          itemBuilder: (ctx, i) {
-                            final t = filteredTxs[i];
-                            final isInc = t.type == 'income';
-                            final isTrans = t.type == 'transfer';
-                            final color = isInc ? const Color(0xFF00E599) : isTrans ? const Color(0xFF38BDF8) : Colors.white;
-
-                            return Dismissible(
-                              key: Key(t.id),
-                              direction: DismissDirection.endToStart,
-                              background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), color: const Color(0xFFFF5252), child: const Icon(Icons.delete, color: Colors.white)),
-                              onDismissed: (_) => store.deleteTransaction(t),
-                              child: Card(
-                                color: const Color(0xFF131B2E),
-                                margin: const EdgeInsets.only(bottom: 8),
-                                child: ListTile(
-                                  leading: CircleAvatar(
-                                    backgroundColor: const Color(0xFF0A0F1D),
-                                    child: Text(t.category.isNotEmpty ? t.category.substring(0, 1) : '₹'),
-                                  ),
-                                  title: Row(
-                                    children: [
-                                      Text(isTrans ? '${t.accountName} → ${t.toAccount}' : t.category, style: const TextStyle(fontWeight: FontWeight.bold)),
-                                      if (t.merchant.isNotEmpty) ...[
-                                        const SizedBox(width: 8),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                          decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(4)),
-                                          child: Text(t.merchant, style: const TextStyle(fontSize: 10, color: Color(0xFF38BDF8), fontWeight: FontWeight.bold)),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                  subtitle: Text('${t.subcategory.isNotEmpty ? "${t.subcategory} • " : ""}${t.accountName}${t.note.isNotEmpty ? " • ${t.note}" : ""}', style: const TextStyle(fontSize: 12, color: Colors.white54)),
-                                  trailing: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text('${isInc ? "+" : "-"} ${inr.format(t.amount)}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: color)),
-                                      IconButton(
-                                        icon: Icon(t.isBookmarked ? Icons.star : Icons.star_border, size: 18, color: t.isBookmarked ? Colors.amber : Colors.white24),
-                                        onPressed: () => store.toggleBookmark(t.id),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
+                  _buildDailyTab(filteredTxs, store),
                   // 2. Calendar
-                  Center(child: Text('${filteredTxs.length} Transactions Recorded in ${DateFormat("MMM yyyy").format(store.selectedMonth)}', style: const TextStyle(fontWeight: FontWeight.bold))),
+                  _buildCalendarTab(filteredTxs, store),
                   // 3. Monthly
-                  ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      Card(
-                        color: const Color(0xFF131B2E),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('Monthly Net Balance', style: TextStyle(color: Colors.white54)),
-                              const SizedBox(height: 6),
-                              Text(inr.format(totalInc - totalExp), style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: totalInc >= totalExp ? const Color(0xFF00E599) : const Color(0xFFFF5252))),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  // 4. Total Overview
-                  ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: store.accounts.map((a) {
-                      return Card(
-                        color: const Color(0xFF131B2E),
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: ListTile(
-                          title: Text(a.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text(a.type.toUpperCase()),
-                          trailing: Text(inr.format(a.balance), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                        ),
-                      );
-                    }).toList(),
-                  ),
+                  _buildMonthlyTab(totalInc, totalExp),
+                  // 4. Total
+                  _buildTotalTab(store),
                   // 5. Note
-                  ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: filteredTxs.where((t) => t.note.isNotEmpty).map((t) => Card(
-                          color: const Color(0xFF131B2E),
-                          child: ListTile(title: Text(t.note, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text('${t.category} • ${inr.format(t.amount)}')),
-                        )).toList(),
+                  _buildNoteTab(filteredTxs),
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildDailyTab(List<TransactionModel> filteredTxs, AppStore store) {
+    if (filteredTxs.isEmpty) {
+      return const Center(child: Text('No data available.', style: TextStyle(color: Colors.white38)));
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
+      itemCount: filteredTxs.length,
+      itemBuilder: (ctx, i) {
+        final t = filteredTxs[i];
+        final isInc = t.type == 'income';
+        final isTrans = t.type == 'transfer';
+        final color = isInc ? const Color(0xFF00E599) : isTrans ? const Color(0xFF38BDF8) : Colors.white;
+
+        return Dismissible(
+          key: Key(t.id),
+          direction: DismissDirection.endToStart,
+          background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), color: const Color(0xFFFF5252), child: const Icon(Icons.delete, color: Colors.white)),
+          onDismissed: (_) => store.deleteTransaction(t),
+          child: Card(
+            color: const Color(0xFF131B2E),
+            margin: const EdgeInsets.only(bottom: 8),
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: const Color(0xFF0A0F1D),
+                child: Text(t.category.isNotEmpty ? t.category.substring(0, 1) : '₹'),
+              ),
+              title: Row(
+                children: [
+                  Text(isTrans ? '${t.accountName} → ${t.toAccount}' : t.category, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  if (t.merchant.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(4)),
+                      child: Text(t.merchant, style: const TextStyle(fontSize: 10, color: Color(0xFF38BDF8), fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ],
+              ),
+              subtitle: Text('${t.subcategory.isNotEmpty ? "${t.subcategory} • " : ""}${t.accountName}${t.note.isNotEmpty ? " • ${t.note}" : ""}', style: const TextStyle(fontSize: 12, color: Colors.white54)),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('${isInc ? "+" : "-"} ${inr.format(t.amount)}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: color)),
+                  IconButton(
+                    icon: Icon(t.isBookmarked ? Icons.star : Icons.star_border, size: 18, color: t.isBookmarked ? Colors.amber : Colors.white24),
+                    onPressed: () => store.toggleBookmark(t.id),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCalendarTab(List<TransactionModel> filteredTxs, AppStore store) {
+    return Center(
+      child: Text('${filteredTxs.length} Transactions Recorded in ${DateFormat("MMM yyyy").format(store.selectedMonth)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+    );
+  }
+
+  Widget _buildMonthlyTab(double totalInc, double totalExp) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Card(
+          color: const Color(0xFF131B2E),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Monthly Net Balance', style: TextStyle(color: Colors.white54)),
+                const SizedBox(height: 6),
+                Text(inr.format(totalInc - totalExp), style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: totalInc >= totalExp ? const Color(0xFF00E599) : const Color(0xFFFF5252))),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTotalTab(AppStore store) {
+    final List<Widget> cards = [];
+    for (int i = 0; i < store.accounts.length; i++) {
+      final a = store.accounts[i];
+      cards.add(
+        Card(
+          color: const Color(0xFF131B2E),
+          margin: const EdgeInsets.only(bottom: 8),
+          child: ListTile(
+            title: Text(a.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text(a.type.toUpperCase()),
+            trailing: Text(inr.format(a.balance), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ),
+        ),
+      );
+    }
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: cards,
+    );
+  }
+
+  Widget _buildNoteTab(List<TransactionModel> filteredTxs) {
+    final noteTxs = filteredTxs.where((t) => t.note.isNotEmpty).toList();
+    if (noteTxs.isEmpty) {
+      return const Center(child: Text('No notes recorded this month.', style: TextStyle(color: Colors.white38)));
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: noteTxs.length,
+      itemBuilder: (ctx, i) => Card(
+        color: const Color(0xFF131B2E),
+        child: ListTile(title: Text(noteTxs[i].note, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text('${noteTxs[i].category} • ${inr.format(noteTxs[i].amount)}')),
       ),
     );
   }
@@ -972,7 +1006,7 @@ class AccountsWealthScreen extends StatelessWidget {
           backgroundColor: const Color(0xFF131B2E),
           title: const Text('Add Account / Card'),
           content: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: dynamicCount(),
             children: [
               TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Account Name')),
               const SizedBox(height: 8),
@@ -1013,6 +1047,8 @@ class AccountsWealthScreen extends StatelessWidget {
       ),
     );
   }
+
+  MainAxisSize dynamicCount() => MainAxisSize.min;
 }
 
 // ==========================================
