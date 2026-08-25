@@ -279,7 +279,7 @@ class AppStore extends ChangeNotifier {
         a.balance -= tx.amount;
       } else if (tx.type == 'transfer') {
         if (a.name == tx.accountName) a.balance += (tx.amount + tx.fee);
-        if (a.name == tx.toAccount) a.balance -= tx.amount;
+        if (a.name == tx.toAccount) a.balance += tx.amount;
       }
     }
     _saveAccounts();
@@ -437,7 +437,7 @@ class _RootNavigationScreenState extends State<RootNavigationScreen> {
 }
 
 // ==========================================
-// 5. HOME SCREEN (5 Sub-Tabs: Daily, Calendar, Monthly, Total, Note)
+// 5. HOME SCREEN (5 Sub-Tabs)
 // ==========================================
 class HomeScreenLayout extends StatefulWidget {
   const HomeScreenLayout({super.key});
@@ -558,7 +558,7 @@ class _HomeScreenLayoutState extends State<HomeScreenLayout> {
             Expanded(
               child: TabBarView(
                 children: [
-                  // Daily
+                  // 1. Daily
                   filteredTxs.isEmpty
                       ? const Center(child: Text('No data available.', style: TextStyle(color: Colors.white38)))
                       : ListView.builder(
@@ -612,9 +612,9 @@ class _HomeScreenLayoutState extends State<HomeScreenLayout> {
                             );
                           },
                         ),
-                  // Calendar
+                  // 2. Calendar
                   Center(child: Text('${filteredTxs.length} Transactions Recorded in ${DateFormat("MMM yyyy").format(store.selectedMonth)}', style: const TextStyle(fontWeight: FontWeight.bold))),
-                  // Monthly
+                  // 3. Monthly
                   ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
@@ -634,15 +634,22 @@ class _HomeScreenLayoutState extends State<HomeScreenLayout> {
                       ),
                     ],
                   ),
-                  // Total
+                  // 4. Total Overview
                   ListView(
                     padding: const EdgeInsets.all(16),
-                    children: store.accounts.map((a) => Card(
-                          color: const Color(0xFF131B2E),
-                          child: ListTile(title: Text(a.name, style: const TextStyle(fontWeight: FontWeight.bold)), trailing: Text(inr.format(a.balance), style: const TextStyle(fontWeight: FontWeight.bold))),
-                        )).toList(),
+                    children: store.accounts.map((a) {
+                      return Card(
+                        color: const Color(0xFF131B2E),
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          title: Text(a.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: Text(a.type.toUpperCase()),
+                          trailing: Text(inr.format(a.balance), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        ),
+                      );
+                    }).toList(),
                   ),
-                  // Note
+                  // 5. Note
                   ListView(
                     padding: const EdgeInsets.all(16),
                     children: filteredTxs.where((t) => t.note.isNotEmpty).map((t) => Card(
@@ -693,7 +700,7 @@ class _HomeScreenLayoutState extends State<HomeScreenLayout> {
 }
 
 // ==========================================
-// 6. ADJUSTER SCREEN (Functional Gauges)
+// 6. ADJUSTER SCREEN
 // ==========================================
 class AdjusterFilterScreen extends StatefulWidget {
   const AdjusterFilterScreen({super.key});
@@ -1267,7 +1274,7 @@ class TransactionSearchDelegate extends SearchDelegate {
 }
 
 // ==========================================
-// 11. ENTRY SCREEN (Split + Merchant + Bottom Sheet Selectors)
+// 11. ENTRY SCREEN
 // ==========================================
 class ExpenseEntryScreen extends StatefulWidget {
   const ExpenseEntryScreen({super.key});
