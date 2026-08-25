@@ -164,7 +164,7 @@ class InvestmentModel {
       };
 
   factory InvestmentModel.fromJson(Map<String, dynamic> j) => InvestmentModel(
-        id: j['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        id: j['id'] ?? '',
         name: j['name'] ?? '',
         category: j['category'] ?? 'Mutual Fund',
         invested: (j['invested'] as num?)?.toDouble() ?? 0.0,
@@ -193,7 +193,7 @@ class LoanModel {
       };
 
   factory LoanModel.fromJson(Map<String, dynamic> j) => LoanModel(
-        id: j['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        id: j['id'] ?? '',
         name: j['name'] ?? '',
         remaining: (j['remaining'] as num?)?.toDouble() ?? 0.0,
         emi: (j['emi'] as num?)?.toDouble() ?? 0.0,
@@ -201,7 +201,7 @@ class LoanModel {
 }
 
 // ============================================================================
-// 2. IN-MEMORY REACTIVE APP STORE (SharedPreferences Backed)
+// 2. IN-MEMORY REACTIVE APP STORE
 // ============================================================================
 
 class AppStore extends ChangeNotifier {
@@ -223,7 +223,6 @@ class AppStore extends ChangeNotifier {
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
 
-    // Accounts
     final rawAccs = _prefs.getString('tracker_accounts');
     if (rawAccs != null) {
       accounts = (jsonDecode(rawAccs) as List)
@@ -238,7 +237,6 @@ class AppStore extends ChangeNotifier {
       _saveAccounts();
     }
 
-    // Categories
     final rawCats = _prefs.getString('tracker_categories');
     if (rawCats != null) {
       categories = (jsonDecode(rawCats) as List)
@@ -267,7 +265,6 @@ class AppStore extends ChangeNotifier {
       _saveCategories();
     }
 
-    // Merchants
     final rawMerchants = _prefs.getStringList('tracker_merchants');
     if (rawMerchants != null) {
       merchants = rawMerchants;
@@ -276,7 +273,6 @@ class AppStore extends ChangeNotifier {
       _saveMerchants();
     }
 
-    // Investments & Loans
     final rawInv = _prefs.getString('tracker_investments');
     if (rawInv != null) {
       investments = (jsonDecode(rawInv) as List)
@@ -301,7 +297,6 @@ class AppStore extends ChangeNotifier {
       _saveLoans();
     }
 
-    // Transactions
     final rawTxs = _prefs.getString('tracker_transactions');
     if (rawTxs != null) {
       transactions = (jsonDecode(rawTxs) as List)
@@ -354,7 +349,7 @@ class AppStore extends ChangeNotifier {
         a.balance -= tx.amount;
       } else if (tx.type == 'transfer') {
         if (a.name == tx.accountName) a.balance += (tx.amount + tx.fee);
-        if (a.name == tx.toAccount) a.balance -= tx.amount;
+        if (a.name == tx.toAccount) a.balance += tx.amount;
       }
     }
     _saveAccounts();
@@ -390,7 +385,7 @@ class AppStore extends ChangeNotifier {
 
   void addSubcategory(String categoryName, String subName) {
     for (var c in categories) {
-      if (c.name == categoryName && !c.subcategories.contains(subName)) {
+      if (c.name.toLowerCase() == categoryName.toLowerCase() && !c.subcategories.contains(subName)) {
         c.subcategories.add(subName);
       }
     }
@@ -400,7 +395,7 @@ class AppStore extends ChangeNotifier {
 
   void deleteSubcategory(String categoryName, String subName) {
     for (var c in categories) {
-      if (c.name == categoryName) {
+      if (c.name.toLowerCase() == categoryName.toLowerCase()) {
         c.subcategories.remove(subName);
       }
     }
@@ -409,22 +404,36 @@ class AppStore extends ChangeNotifier {
   }
 
   void addMerchant(String name) {
-    if (!merchants.contains(name)) {
-      merchants.add(name);
+    if (name.trim().isNotEmpty && !merchants.contains(name.trim())) {
+      merchants.add(name.trim());
       _saveMerchants();
       notifyListeners();
     }
   }
 
+  void deleteMerchant(String name) {
+    merchants.remove(name);
+    _saveMerchants();
+    notifyListeners();
+  }
+
   void addAccount(String name, String type, double balance, int dueDay) {
-    accounts.add(AccountModel(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      name: name,
-      type: type,
-      balance: balance,
-      dueDay: dueDay,
-    ));
-    activeFilterAccounts.add(name);
+    if (name.trim().isNotEmpty) {
+      accounts.add(AccountModel(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        name: name.trim(),
+        type: type,
+        balance: balance,
+        dueDay: dueDay,
+      ));
+      activeFilterAccounts.add(name.trim());
+      _saveAccounts();
+      notifyListeners();
+    }
+  }
+
+  void deleteAccount(String id) {
+    accounts.removeWhere((a) => a.id == id);
     _saveAccounts();
     notifyListeners();
   }
@@ -462,7 +471,7 @@ class AppStore extends ChangeNotifier {
 final inr = NumberFormat.currency(symbol: '₹', locale: 'en_IN', decimalDigits: 2);
 
 // ============================================================================
-// 3. MAIN APP BOOTSTRAP
+// 3. MAIN APP ROOT
 // ============================================================================
 
 void main() async {
@@ -496,7 +505,7 @@ class SagarsMoneyTrackerApp extends StatelessWidget {
 }
 
 // ============================================================================
-// 4. BOTTOM TABS CONTROLLER (4 Primary Tabs + Centered FAB)
+// 4. BOTTOM TABS CONTROLLER
 // ============================================================================
 
 class RootNavigationScreen extends StatefulWidget {
@@ -553,7 +562,7 @@ class _RootNavigationScreenState extends State<RootNavigationScreen> {
 }
 
 // ============================================================================
-// 5. HOME SCREEN (5 Sub-Tabs: Daily, Calendar, Monthly, Total, Note)
+// 5. HOME SCREEN (5 Sub-Tabs)
 // ============================================================================
 
 class HomeScreenLayout extends StatefulWidget {
@@ -858,7 +867,7 @@ class _HomeScreenLayoutState extends State<HomeScreenLayout> {
 }
 
 // ============================================================================
-// 6. ADJUSTER FILTER SCREEN (Working Circular Gauges & Account Filters)
+// 6. ADJUSTER FILTER SCREEN
 // ============================================================================
 
 class AdjusterFilterScreen extends StatefulWidget {
@@ -968,7 +977,7 @@ class _AdjusterFilterScreenState extends State<AdjusterFilterScreen> {
 }
 
 // ============================================================================
-// 7. STATS & ANALYTICS TAB (Donut Breakdown & Category Ranks)
+// 7. STATS SCREEN
 // ============================================================================
 
 class StatsScreen extends StatelessWidget {
@@ -1098,7 +1107,16 @@ class AccountsWealthScreen extends StatelessWidget {
                     child: ListTile(
                       title: Text(a.name, style: const TextStyle(fontWeight: FontWeight.bold)),
                       subtitle: Text(a.type == 'credit_card' ? 'Due Day: ${a.dueDay}th' : a.type.toUpperCase()),
-                      trailing: Text(inr.format(a.balance), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: a.type == 'credit_card' ? const Color(0xFFFF5252) : Colors.white)),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(inr.format(a.balance), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: a.type == 'credit_card' ? const Color(0xFFFF5252) : Colors.white)),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.white24, size: 18),
+                            onPressed: () => store.deleteAccount(a.id),
+                          ),
+                        ],
+                      ),
                     ),
                   )).toList(),
             ),
@@ -1164,38 +1182,40 @@ class AccountsWealthScreen extends StatelessWidget {
         builder: (ctx, setDState) => AlertDialog(
           backgroundColor: const Color(0xFF131B2E),
           title: const Text('Add Account / Card'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Account Name')),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                value: type,
-                dropdownColor: const Color(0xFF131B2E),
-                items: const [
-                  DropdownMenuItem(value: 'bank', child: Text('Bank Account')),
-                  DropdownMenuItem(value: 'cash', child: Text('Cash')),
-                  DropdownMenuItem(value: 'credit_card', child: Text('Credit Card')),
-                ],
-                onChanged: (v) => setDState(() => type = v!),
-              ),
-              const SizedBox(height: 8),
-              TextField(controller: balCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Balance / Due (₹)')),
-              if (type == 'credit_card') ...[
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Account Name')),
                 const SizedBox(height: 8),
-                TextField(controller: dueCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Bill Due Day (e.g. 20)')),
+                DropdownButtonFormField<String>(
+                  value: type,
+                  dropdownColor: const Color(0xFF131B2E),
+                  items: const [
+                    DropdownMenuItem(value: 'bank', child: Text('Bank Account')),
+                    DropdownMenuItem(value: 'cash', child: Text('Cash')),
+                    DropdownMenuItem(value: 'credit_card', child: Text('Credit Card')),
+                  ],
+                  onChanged: (v) => setDState(() => type = v!),
+                ),
+                const SizedBox(height: 8),
+                TextField(controller: balCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Balance / Due (₹)')),
+                if (type == 'credit_card') ...[
+                  const SizedBox(height: 8),
+                  TextField(controller: dueCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Bill Due Day (e.g. 20)')),
+                ],
               ],
-            ],
+            ),
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E599)),
               onPressed: () {
-                if (nameCtrl.text.isNotEmpty) {
-                  final b = double.tryParse(balCtrl.text) ?? 0.0;
-                  final d = int.tryParse(dueCtrl.text) ?? 0;
-                  AppStore.instance.addAccount(nameCtrl.text, type, b, d);
+                if (nameCtrl.text.trim().isNotEmpty) {
+                  final b = double.tryParse(balCtrl.text.trim()) ?? 0.0;
+                  final d = int.tryParse(dueCtrl.text.trim()) ?? 0;
+                  AppStore.instance.addAccount(nameCtrl.text.trim(), type, b, d);
                   Navigator.pop(ctx);
                 }
               },
@@ -1285,7 +1305,7 @@ class AccountsWealthScreen extends StatelessWidget {
 }
 
 // ============================================================================
-// 9. CONFIGURATION & MORE TAB (Categories, Merchants, CSV Export)
+// 9. CONFIGURATION & MORE TAB (Reactive Lists)
 // ============================================================================
 
 class MoreOptionsScreen extends StatelessWidget {
@@ -1341,44 +1361,62 @@ class MerchantManagerScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final store = AppStore.instance;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Manage Merchants'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () {
-              final ctrl = TextEditingController();
-              showDialog(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  backgroundColor: const Color(0xFF131B2E),
-                  title: const Text('Add Merchant'),
-                  content: TextField(controller: ctrl, decoration: const InputDecoration(labelText: 'Merchant Name')),
-                  actions: [
-                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E599)),
-                      onPressed: () {
-                        if (ctrl.text.isNotEmpty) {
-                          store.addMerchant(ctrl.text);
-                          Navigator.pop(ctx);
-                        }
-                      },
-                      child: const Text('Add', style: TextStyle(color: Colors.black)),
+    return AnimatedBuilder(
+      animation: AppStore.instance,
+      builder: (context, _) {
+        final store = AppStore.instance;
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Manage Merchants'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.add),
+                onPressed: () {
+                  final ctrl = TextEditingController();
+                  showDialog(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      backgroundColor: const Color(0xFF131B2E),
+                      title: const Text('Add Merchant'),
+                      content: TextField(
+                        controller: ctrl,
+                        autofocus: true,
+                        decoration: const InputDecoration(labelText: 'Merchant Name'),
+                      ),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E599)),
+                          onPressed: () {
+                            if (ctrl.text.trim().isNotEmpty) {
+                              store.addMerchant(ctrl.text.trim());
+                              Navigator.pop(ctx);
+                            }
+                          },
+                          child: const Text('Add', style: TextStyle(color: Colors.black)),
+                        ),
+                      ],
                     ),
-                  ],
+                  );
+                },
+              ),
+            ],
+          ),
+          body: ListView.builder(
+            itemCount: store.merchants.length,
+            itemBuilder: (ctx, i) {
+              final m = store.merchants[i];
+              return ListTile(
+                leading: IconButton(
+                  icon: const Icon(Icons.remove_circle, color: Color(0xFFFF5252)),
+                  onPressed: () => store.deleteMerchant(m),
                 ),
+                title: Text(m),
               );
             },
           ),
-        ],
-      ),
-      body: ListView.builder(
-        itemCount: store.merchants.length,
-        itemBuilder: (ctx, i) => ListTile(title: Text(store.merchants[i])),
-      ),
+        );
+      },
     );
   }
 }
@@ -1389,35 +1427,43 @@ class CategoryManagerScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final store = AppStore.instance;
-    final cats = store.categories.where((c) => c.type == type).toList();
+    return AnimatedBuilder(
+      animation: AppStore.instance,
+      builder: (context, _) {
+        final store = AppStore.instance;
+        final cats = store.categories.where((c) => c.type == type).toList();
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(type == 'expense' ? 'Expenses Category' : 'Income Category'),
-        actions: [
-          IconButton(icon: const Icon(Icons.add), onPressed: () => _showAddCategory(context)),
-        ],
-      ),
-      body: ListView.builder(
-        itemCount: cats.length,
-        itemBuilder: (ctx, i) {
-          final cat = cats[i];
-          return ListTile(
-            leading: IconButton(icon: const Icon(Icons.remove_circle, color: Color(0xFFFF5252)), onPressed: () => store.deleteCategory(cat.id)),
-            title: Row(
-              children: [
-                Text(cat.emoji, style: const TextStyle(fontSize: 18)),
-                const SizedBox(width: 8),
-                Text(cat.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-              ],
-            ),
-            subtitle: cat.subcategories.isNotEmpty ? Text(cat.subcategories.join(', '), style: const TextStyle(fontSize: 12, color: Colors.white54)) : null,
-            trailing: const Icon(Icons.chevron_right, color: Colors.white38),
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SubcategoryManagerScreen(categoryName: cat.name))),
-          );
-        },
-      ),
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(type == 'expense' ? 'Expenses Category' : 'Income Category'),
+            actions: [
+              IconButton(icon: const Icon(Icons.add), onPressed: () => _showAddCategory(context)),
+            ],
+          ),
+          body: ListView.builder(
+            itemCount: cats.length,
+            itemBuilder: (ctx, i) {
+              final cat = cats[i];
+              return ListTile(
+                leading: IconButton(
+                  icon: const Icon(Icons.remove_circle, color: Color(0xFFFF5252)),
+                  onPressed: () => store.deleteCategory(cat.id),
+                ),
+                title: Row(
+                  children: [
+                    Text(cat.emoji, style: const TextStyle(fontSize: 18)),
+                    const SizedBox(width: 8),
+                    Text(cat.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                subtitle: cat.subcategories.isNotEmpty ? Text(cat.subcategories.join(', '), style: const TextStyle(fontSize: 12, color: Colors.white54)) : null,
+                trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SubcategoryManagerScreen(categoryName: cat.name))),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 
@@ -1433,7 +1479,7 @@ class CategoryManagerScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(controller: emojiCtrl, decoration: const InputDecoration(labelText: 'Emoji (e.g. 🍔)')),
-            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Category Name')),
+            TextField(controller: nameCtrl, autofocus: true, decoration: const InputDecoration(labelText: 'Category Name')),
           ],
         ),
         actions: [
@@ -1441,8 +1487,8 @@ class CategoryManagerScreen extends StatelessWidget {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF5252)),
             onPressed: () {
-              if (nameCtrl.text.isNotEmpty) {
-                AppStore.instance.addCategory(nameCtrl.text, type, emojiCtrl.text);
+              if (nameCtrl.text.trim().isNotEmpty) {
+                AppStore.instance.addCategory(nameCtrl.text.trim(), type, emojiCtrl.text.trim().isEmpty ? '📦' : emojiCtrl.text.trim());
                 Navigator.pop(ctx);
               }
             },
@@ -1460,44 +1506,62 @@ class SubcategoryManagerScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final store = AppStore.instance;
-    final cat = store.categories.firstWhere((c) => c.name == categoryName);
+    return AnimatedBuilder(
+      animation: AppStore.instance,
+      builder: (context, _) {
+        final store = AppStore.instance;
+        CategoryModel? cat;
+        for (var c in store.categories) {
+          if (c.name.toLowerCase() == categoryName.toLowerCase()) {
+            cat = c;
+            break;
+          }
+        }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('$categoryName Subcategories'),
-        actions: [
-          IconButton(icon: const Icon(Icons.add), onPressed: () => _showAddSub(context)),
-        ],
-      ),
-      body: ListView.builder(
-        itemCount: cat.subcategories.length,
-        itemBuilder: (ctx, i) {
-          final s = cat.subcategories[i];
-          return ListTile(
-            leading: IconButton(icon: const Icon(Icons.remove_circle, color: Color(0xFFFF5252)), onPressed: () => store.deleteSubcategory(categoryName, s)),
-            title: Text(s, style: const TextStyle(fontWeight: FontWeight.bold)),
-          );
-        },
-      ),
+        if (cat == null) {
+          return Scaffold(appBar: AppBar(title: Text(categoryName)), body: const Center(child: Text('Category not found.')));
+        }
+
+        return Scaffold(
+          appBar: AppBar(
+            title: Text('${cat.name} Subcategories'),
+            actions: [
+              IconButton(icon: const Icon(Icons.add), onPressed: () => _showAddSub(context, cat!.name)),
+            ],
+          ),
+          body: ListView.builder(
+            itemCount: cat.subcategories.length,
+            itemBuilder: (ctx, i) {
+              final s = cat!.subcategories[i];
+              return ListTile(
+                leading: IconButton(
+                  icon: const Icon(Icons.remove_circle, color: Color(0xFFFF5252)),
+                  onPressed: () => store.deleteSubcategory(categoryName, s),
+                ),
+                title: Text(s, style: const TextStyle(fontWeight: FontWeight.bold)),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 
-  void _showAddSub(BuildContext context) {
+  void _showAddSub(BuildContext context, String currentCatName) {
     final nameCtrl = TextEditingController();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF131B2E),
         title: const Text('Add Subcategory'),
-        content: TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Subcategory Name')),
+        content: TextField(controller: nameCtrl, autofocus: true, decoration: const InputDecoration(labelText: 'Subcategory Name')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF5252)),
             onPressed: () {
-              if (nameCtrl.text.isNotEmpty) {
-                AppStore.instance.addSubcategory(categoryName, nameCtrl.text);
+              if (nameCtrl.text.trim().isNotEmpty) {
+                AppStore.instance.addSubcategory(currentCatName, nameCtrl.text.trim());
                 Navigator.pop(ctx);
               }
             },
@@ -1545,7 +1609,7 @@ class TransactionSearchDelegate extends SearchDelegate {
 }
 
 // ============================================================================
-// 11. TRANSACTION ENTRY SCREEN (Split Cart, Keypad & Modals)
+// 11. TRANSACTION ENTRY SCREEN (Fixed Keyboard, Category selection & Save)
 // ============================================================================
 
 class ExpenseEntryScreen extends StatefulWidget {
@@ -1571,6 +1635,18 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
   List<Map<String, dynamic>> _splitItems = [];
 
   @override
+  void initState() {
+    super.initState();
+    final store = AppStore.instance;
+    if (store.accounts.isNotEmpty) {
+      _selectedAccount = store.accounts.first.name;
+      if (store.accounts.length > 1) {
+        _selectedToAccount = store.accounts[1].name;
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final primaryColor = _type == 'expense' ? const Color(0xFFFF5252) : _type == 'income' ? const Color(0xFF00E599) : const Color(0xFF38BDF8);
 
@@ -1582,7 +1658,17 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
           Row(
             children: ['income', 'expense', 'transfer'].map((t) => Expanded(
                   child: GestureDetector(
-                    onTap: () => setState(() => _type = t),
+                    onTap: () {
+                      setState(() {
+                        _type = t;
+                        final cats = AppStore.instance.categories.where((c) => c.type == _type).toList();
+                        if (cats.isNotEmpty) {
+                          _selectedCategory = cats.first.name;
+                          _categoryEmoji = cats.first.emoji;
+                          _selectedSubcategory = cats.first.subcategories.isNotEmpty ? cats.first.subcategories.first : '';
+                        }
+                      });
+                    },
                     child: Container(
                       margin: const EdgeInsets.symmetric(horizontal: 4),
                       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1715,21 +1801,27 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
                 children: r.map((k) => Expanded(
                       child: InkWell(
                         onTap: () {
+                          HapticFeedback.lightImpact();
                           setState(() {
                             if (isFee) {
                               if (k == '⌫') {
-                                if (_feeController.text.isNotEmpty) _feeController.text = _feeController.text.substring(0, _feeController.text.length - 1);
+                                if (_feeController.text.isNotEmpty) {
+                                  _feeController.text = _feeController.text.substring(0, _feeController.text.length - 1);
+                                }
                               } else {
                                 _feeController.text += k;
                               }
                             } else {
                               if (k == '⌫') {
-                                if (_totalAmountStr.isNotEmpty) _totalAmountStr = _totalAmountStr.substring(0, _totalAmountStr.length - 1);
+                                if (_totalAmountStr.isNotEmpty) {
+                                  _totalAmountStr = _totalAmountStr.substring(0, _totalAmountStr.length - 1);
+                                }
                               } else {
                                 if (_totalAmountStr.length < 9) _totalAmountStr += k;
                               }
                             }
                           });
+                          setBState(() {});
                         },
                         child: Container(
                           height: 55,
@@ -1784,6 +1876,9 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
               _selectedSubcategory = cats[i].subcategories.isNotEmpty ? cats[i].subcategories.first : '';
             });
             Navigator.pop(ctx);
+            if (cats[i].subcategories.isNotEmpty) {
+              _openSubcategoryPicker();
+            }
           },
           child: Container(
             color: const Color(0xFF0A0F1D),
@@ -1796,12 +1891,21 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
   }
 
   void _openSubcategoryPicker() {
-    final cat = AppStore.instance.categories.firstWhere((c) => c.name == _selectedCategory);
+    CategoryModel? matchedCat;
+    for (var c in AppStore.instance.categories) {
+      if (c.name.toLowerCase() == _selectedCategory.toLowerCase()) {
+        matchedCat = c;
+        break;
+      }
+    }
+
+    if (matchedCat == null || matchedCat.subcategories.isEmpty) return;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF131B2E),
       builder: (ctx) => ListView(
-        children: cat.subcategories.map((s) => ListTile(
+        children: matchedCat!.subcategories.map((s) => ListTile(
               title: Text(s),
               onTap: () {
                 setState(() => _selectedSubcategory = s);
@@ -1852,7 +1956,9 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
                 items: AppStore.instance.categories.where((c) => c.type == 'expense').map((c) => DropdownMenuItem(value: c.name, child: Text('${c.emoji} ${c.name}'))).toList(),
                 onChanged: (v) => setDState(() {
                   cat = v!;
-                  emoji = AppStore.instance.categories.firstWhere((c) => c.name == v).emoji;
+                  for (var c in AppStore.instance.categories) {
+                    if (c.name == v) emoji = c.emoji;
+                  }
                 }),
               ),
               const SizedBox(height: 8),
@@ -1880,7 +1986,10 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
 
   void _save({required bool close}) {
     final amt = double.tryParse(_totalAmountStr) ?? 0.0;
-    if (amt <= 0) return;
+    if (amt <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter an amount greater than 0.')));
+      return;
+    }
 
     if (_type == 'transfer') {
       final fee = double.tryParse(_feeController.text) ?? 0.0;
