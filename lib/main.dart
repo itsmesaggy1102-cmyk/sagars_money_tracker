@@ -10,7 +10,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:csv/csv.dart';
 
 // ============================================================================
-// 1. DATA MODELS & JSON SERIALIZATION
+// 1. DATA MODELS & JSON SERIALIZATION (Replit Schema Port)
 // ============================================================================
 
 class AccountModel {
@@ -193,7 +193,7 @@ class LoanModel {
       };
 
   factory LoanModel.fromJson(Map<String, dynamic> j) => LoanModel(
-        id: j['id'] ?? '',
+        id: j['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
         name: j['name'] ?? '',
         remaining: (j['remaining'] as num?)?.toDouble() ?? 0.0,
         emi: (j['emi'] as num?)?.toDouble() ?? 0.0,
@@ -201,7 +201,7 @@ class LoanModel {
 }
 
 // ============================================================================
-// 2. IN-MEMORY REACTIVE APP STORE
+// 2. APP STATE CONTEXT & PERSISTENCE (Replit AppContext Port)
 // ============================================================================
 
 class AppStore extends ChangeNotifier {
@@ -349,7 +349,7 @@ class AppStore extends ChangeNotifier {
         a.balance -= tx.amount;
       } else if (tx.type == 'transfer') {
         if (a.name == tx.accountName) a.balance += (tx.amount + tx.fee);
-        if (a.name == tx.toAccount) a.balance += tx.amount;
+        if (a.name == tx.toAccount) a.balance -= tx.amount;
       }
     }
     _saveAccounts();
@@ -505,7 +505,7 @@ class SagarsMoneyTrackerApp extends StatelessWidget {
 }
 
 // ============================================================================
-// 4. BOTTOM TABS CONTROLLER
+// 4. BOTTOM TABS CONTROLLER (Trans., Stats, Accounts, More)
 // ============================================================================
 
 class RootNavigationScreen extends StatefulWidget {
@@ -562,7 +562,7 @@ class _RootNavigationScreenState extends State<RootNavigationScreen> {
 }
 
 // ============================================================================
-// 5. HOME SCREEN (5 Sub-Tabs)
+// 5. HOME SCREEN (5 Sub-Tabs: Daily, Calendar, Monthly, Total, Note)
 // ============================================================================
 
 class HomeScreenLayout extends StatefulWidget {
@@ -867,7 +867,7 @@ class _HomeScreenLayoutState extends State<HomeScreenLayout> {
 }
 
 // ============================================================================
-// 6. ADJUSTER FILTER SCREEN
+// 6. ADJUSTER FILTER SCREEN (Working Circular Gauges & Account Filters)
 // ============================================================================
 
 class AdjusterFilterScreen extends StatefulWidget {
@@ -977,7 +977,7 @@ class _AdjusterFilterScreenState extends State<AdjusterFilterScreen> {
 }
 
 // ============================================================================
-// 7. STATS SCREEN
+// 7. STATS SCREEN (Reports & Charts Port)
 // ============================================================================
 
 class StatsScreen extends StatelessWidget {
@@ -1061,7 +1061,7 @@ class StatsScreen extends StatelessWidget {
 }
 
 // ============================================================================
-// 8. UNIFIED WEALTH & ACCOUNTS HUB (Net Worth + 3 Segmented Tabs)
+// 8. UNIFIED WEALTH & ACCOUNTS HUB (Net Worth Hub)
 // ============================================================================
 
 class AccountsWealthScreen extends StatelessWidget {
@@ -1305,7 +1305,7 @@ class AccountsWealthScreen extends StatelessWidget {
 }
 
 // ============================================================================
-// 9. CONFIGURATION & MORE TAB (Reactive Lists)
+// 9. CONFIGURATION & MORE TAB (Full Reactive Category & Merchant Tools)
 // ============================================================================
 
 class MoreOptionsScreen extends StatelessWidget {
@@ -1592,7 +1592,13 @@ class TransactionSearchDelegate extends SearchDelegate {
 
   Widget _buildList() {
     final q = query.toLowerCase();
-    final results = txs.where((t) => t.category.toLowerCase().contains(q) || t.subcategory.toLowerCase().contains(q) || t.merchant.toLowerCase().contains(q) || t.note.toLowerCase().contains(q) || t.accountName.toLowerCase().contains(q)).toList();
+    final results = txs.where((t) {
+      return t.category.toLowerCase().contains(q) ||
+          t.subcategory.toLowerCase().contains(q) ||
+          t.merchant.toLowerCase().contains(q) ||
+          t.note.toLowerCase().contains(q) ||
+          t.accountName.toLowerCase().contains(q);
+    }).toList();
 
     return ListView.builder(
       itemCount: results.length,
@@ -1609,7 +1615,7 @@ class TransactionSearchDelegate extends SearchDelegate {
 }
 
 // ============================================================================
-// 11. TRANSACTION ENTRY SCREEN (Fixed Keyboard, Category selection & Save)
+// 11. TRANSACTION ENTRY SCREEN (Split Cart, Keypad & Modals)
 // ============================================================================
 
 class ExpenseEntryScreen extends StatefulWidget {
