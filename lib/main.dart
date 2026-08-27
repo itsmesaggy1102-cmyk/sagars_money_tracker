@@ -10,7 +10,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:csv/csv.dart';
 
 // ============================================================================
-// REPLIT THEME COLORS (constants/colors.ts)
+// THEME & COLOR PALETTE (Exact Replit Port)
 // ============================================================================
 class AppColors {
   static const primary = Color(0xFF00C853);
@@ -18,7 +18,6 @@ class AppColors {
   static const primaryLight = Color(0xFF5EFC82);
   static const background = Color(0xFFF8FAF8);
   static const surface = Color(0xFFFFFFFF);
-  static const card = Color(0xFFFFFFFF);
   static const text = Color(0xFF1C2826);
   static const textSecondary = Color(0xFF6B7280);
   static const textMuted = Color(0xFF9CA3AF);
@@ -26,11 +25,10 @@ class AppColors {
   static const income = Color(0xFF00C853);
   static const expense = Color(0xFFFF3B30);
   static const transfer = Color(0xFF007AFF);
-  static const warning = Color(0xFFFF9500);
 }
 
 // ============================================================================
-// DATA MODELS (shared/schema.ts)
+// DATA MODELS (Direct Replit schema.ts Port)
 // ============================================================================
 class Account {
   String id;
@@ -98,7 +96,7 @@ class Category {
   factory Category.fromJson(Map<String, dynamic> json) => Category(
         id: json['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
         name: json['name'] ?? '',
-        icon: json['icon'] ?? 'Tag',
+        icon: json['icon'] ?? 'tag',
         color: json['color'] ?? '#00C853',
         type: json['type'] ?? 'expense',
       );
@@ -113,7 +111,6 @@ class Transaction {
   String? toAccountId;
   String note;
   DateTime date;
-  List<String>? tags;
 
   Transaction({
     required this.id,
@@ -124,7 +121,6 @@ class Transaction {
     this.toAccountId,
     required this.note,
     required this.date,
-    this.tags,
   });
 
   Map<String, dynamic> toJson() => {
@@ -136,7 +132,6 @@ class Transaction {
         'toAccountId': toAccountId,
         'note': note,
         'date': date.toIso8601String(),
-        'tags': tags,
       };
 
   factory Transaction.fromJson(Map<String, dynamic> json) => Transaction(
@@ -148,12 +143,11 @@ class Transaction {
         toAccountId: json['toAccountId'],
         note: json['note'] ?? '',
         date: DateTime.tryParse(json['date'] ?? '') ?? DateTime.now(),
-        tags: (json['tags'] as List<dynamic>?)?.map((e) => e.toString()).toList(),
       );
 }
 
 // ============================================================================
-// REPLIT APP CONTEXT PORT (context/AppContext.tsx)
+// APP STORE & PERSISTENCE (Direct Replit AppContext.tsx Port)
 // ============================================================================
 class AppProvider extends ChangeNotifier {
   static final AppProvider instance = AppProvider._internal();
@@ -165,7 +159,6 @@ class AppProvider extends ChangeNotifier {
   List<Category> categories = [];
   List<Transaction> transactions = [];
   String userName = 'Sagar';
-
   DateTime selectedMonth = DateTime(2026, 8, 1);
 
   Future<void> init() async {
@@ -174,7 +167,6 @@ class AppProvider extends ChangeNotifier {
     final rawName = _prefs.getString('@user_name');
     if (rawName != null) userName = rawName;
 
-    // 1. Initial Accounts (from Replit context/AppContext.tsx)
     final rawAccounts = _prefs.getString('@accounts');
     if (rawAccounts != null) {
       accounts = (jsonDecode(rawAccounts) as List).map((a) => Account.fromJson(a)).toList();
@@ -187,7 +179,6 @@ class AppProvider extends ChangeNotifier {
       _saveAccounts();
     }
 
-    // 2. Initial Categories (from Replit context/AppContext.tsx)
     final rawCats = _prefs.getString('@categories');
     if (rawCats != null) {
       categories = (jsonDecode(rawCats) as List).map((c) => Category.fromJson(c)).toList();
@@ -208,12 +199,10 @@ class AppProvider extends ChangeNotifier {
         Category(id: '13', name: 'Gifts', icon: 'gift', color: '#FF9500', type: 'income'),
         Category(id: '14', name: 'Dividends', icon: 'pie-chart', color: '#5856D6', type: 'income'),
         Category(id: '15', name: 'Other Income', icon: 'plus-circle', color: '#34C759', type: 'income'),
-        Category(id: '16', name: 'Transfer', icon: 'arrow-left-right', color: '#8E8E93', type: 'expense'),
       ];
       _saveCategories();
     }
 
-    // 3. Initial Transactions
     final rawTxs = _prefs.getString('@transactions');
     if (rawTxs != null) {
       transactions = (jsonDecode(rawTxs) as List).map((t) => Transaction.fromJson(t)).toList();
@@ -239,7 +228,6 @@ class AppProvider extends ChangeNotifier {
   void addTransaction(Transaction tx) {
     transactions.insert(0, tx);
 
-    // Update balances exactly like AppContext.tsx
     for (var acc in accounts) {
       if (tx.type == 'income' && acc.id == tx.accountId) {
         acc.balance += tx.amount;
@@ -311,7 +299,7 @@ class AppProvider extends ChangeNotifier {
 final inr = NumberFormat.currency(symbol: '₹', locale: 'en_IN', decimalDigits: 0);
 
 // ============================================================================
-// FLUTTER APP ROOT & ROUTING
+// APP ENTRY POINT
 // ============================================================================
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -351,7 +339,7 @@ class SagarsMoneyTrackerApp extends StatelessWidget {
 }
 
 // ============================================================================
-// MAIN TAB NAVIGATOR (app/(tabs)/_layout.tsx)
+// ROOT TAB NAVIGATOR (app/(tabs)/_layout.tsx)
 // ============================================================================
 class MainTabNavigator extends StatefulWidget {
   const MainTabNavigator({super.key});
@@ -400,7 +388,7 @@ class _MainTabNavigatorState extends State<MainTabNavigator> {
                 children: [
                   _navItem(Icons.home_outlined, Icons.home, 'Home', 0),
                   _navItem(Icons.account_balance_wallet_outlined, Icons.account_balance_wallet, 'Accounts', 1),
-                  const SizedBox(width: 48), // gap for centered FAB
+                  const SizedBox(width: 48),
                   _navItem(Icons.pie_chart_outline, Icons.pie_chart, 'Reports', 2),
                   _navItem(Icons.settings_outlined, Icons.settings, 'Settings', 3),
                 ],
@@ -455,7 +443,6 @@ class HomeScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
           children: [
-            // Top Welcome Header
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -475,7 +462,7 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // Total Net Worth Card (Gradient Emerald Green from Expo design)
+            // Net Worth Card
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -514,7 +501,7 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 20),
 
-            // Month Switcher (< Aug 2026 >)
+            // Month Switcher
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -537,7 +524,7 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 10),
 
-            // Month Stats Grid (Income, Expenses, Balance)
+            // Income / Expense / Balance Grid
             Row(
               children: [
                 _metricCard('Income', inr.format(income), Icons.arrow_downward, AppColors.income),
@@ -549,7 +536,6 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // Recent Transactions Section Header
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -559,14 +545,13 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
 
-            // Transactions Feed List
             if (currentMonthTxs.isEmpty)
               Container(
                 padding: const EdgeInsets.all(32),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
-                child: Column(
-                  children: const [
+                child: const Column(
+                  children: [
                     Icon(Icons.bar_chart, size: 48, color: AppColors.textMuted),
                     SizedBox(height: 12),
                     Text('No expenses this month', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.text, fontSize: 15)),
@@ -1031,7 +1016,7 @@ class _AddTransactionModalState extends State<AddTransactionModal> {
   String _selectedToAccount = '';
   String _selectedCategory = '';
   final _noteController = TextEditingController();
-  DateTime _date = DateTime.now();
+  final DateTime _date = DateTime.now();
 
   @override
   void initState() {
@@ -1061,7 +1046,6 @@ class _AddTransactionModalState extends State<AddTransactionModal> {
       ),
       body: Column(
         children: [
-          // Segmented Type Selector
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
@@ -1092,7 +1076,6 @@ class _AddTransactionModalState extends State<AddTransactionModal> {
             ),
           ),
 
-          // Amount Display Area
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 12),
             child: Text(
@@ -1101,7 +1084,6 @@ class _AddTransactionModalState extends State<AddTransactionModal> {
             ),
           ),
 
-          // Form Controls (Account & Category Pickers)
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1141,7 +1123,6 @@ class _AddTransactionModalState extends State<AddTransactionModal> {
             ),
           ),
 
-          // Custom Keypad Grid (from Expo add.tsx)
           Container(
             padding: const EdgeInsets.only(bottom: 20),
             color: AppColors.background,
