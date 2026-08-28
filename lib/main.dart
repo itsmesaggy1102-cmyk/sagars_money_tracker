@@ -10,7 +10,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:csv/csv.dart';
 
 // ============================================================================
-// THEME & COLOR PALETTE (Exact Replit Port)
+// THEME & COLOR PALETTE (From Replit constants/colors.ts)
 // ============================================================================
 class AppColors {
   static const primary = Color(0xFF00C853);
@@ -28,7 +28,7 @@ class AppColors {
 }
 
 // ============================================================================
-// DATA MODELS (Direct Replit schema.ts Port)
+// DATA MODELS (From Replit shared/schema.ts)
 // ============================================================================
 class Account {
   String id;
@@ -147,7 +147,7 @@ class Transaction {
 }
 
 // ============================================================================
-// APP STORE & PERSISTENCE (Direct Replit AppContext.tsx Port)
+// APP STORE & PERSISTENCE (From Replit context/AppContext.tsx)
 // ============================================================================
 class AppProvider extends ChangeNotifier {
   static final AppProvider instance = AppProvider._internal();
@@ -252,10 +252,10 @@ class AppProvider extends ChangeNotifier {
         if (tx.type == 'income' && acc.id == tx.accountId) {
           acc.balance -= tx.amount;
         } else if (tx.type == 'expense' && acc.id == tx.accountId) {
-          acc.balance += tx.amount;
+          acc.balance -= tx.amount;
         } else if (tx.type == 'transfer') {
-          if (acc.id == tx.accountId) acc.balance += tx.amount;
-          if (acc.id == tx.toAccountId) acc.balance -= tx.amount;
+          if (acc.id == tx.accountId) acc.balance -= tx.amount;
+          if (acc.id == tx.toAccountId) acc.balance += tx.amount;
         }
       }
       transactions.removeAt(idx);
@@ -339,7 +339,7 @@ class SagarsMoneyTrackerApp extends StatelessWidget {
 }
 
 // ============================================================================
-// ROOT TAB NAVIGATOR (app/(tabs)/_layout.tsx)
+// ROOT TAB NAVIGATOR (From Replit app/(tabs)/_layout.tsx)
 // ============================================================================
 class MainTabNavigator extends StatefulWidget {
   const MainTabNavigator({super.key});
@@ -418,7 +418,7 @@ class _MainTabNavigatorState extends State<MainTabNavigator> {
 }
 
 // ============================================================================
-// 1. HOME SCREEN (app/(tabs)/index.tsx)
+// 1. HOME SCREEN (From Replit app/(tabs)/index.tsx)
 // ============================================================================
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -462,7 +462,7 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // Net Worth Card
+            // Net Worth Card (Emerald Gradient)
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -524,7 +524,7 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 10),
 
-            // Income / Expense / Balance Grid
+            // Metrics Summary
             Row(
               children: [
                 _metricCard('Income', inr.format(income), Icons.arrow_downward, AppColors.income),
@@ -631,7 +631,7 @@ class HomeScreen extends StatelessWidget {
 }
 
 // ============================================================================
-// 2. ACCOUNTS SCREEN (app/(tabs)/accounts.tsx)
+// 2. ACCOUNTS SCREEN (From Replit app/(tabs)/accounts.tsx)
 // ============================================================================
 class AccountsScreen extends StatelessWidget {
   const AccountsScreen({super.key});
@@ -751,7 +751,7 @@ class AccountsScreen extends StatelessWidget {
 }
 
 // ============================================================================
-// 3. REPORTS SCREEN (app/(tabs)/reports.tsx)
+// 3. REPORTS SCREEN (From Replit app/(tabs)/reports.tsx)
 // ============================================================================
 class ReportsScreen extends StatelessWidget {
   const ReportsScreen({super.key});
@@ -836,7 +836,7 @@ class ReportsScreen extends StatelessWidget {
 }
 
 // ============================================================================
-// 4. SETTINGS SCREEN (app/(tabs)/settings.tsx)
+// 4. SETTINGS SCREEN (From Replit app/(tabs)/settings.tsx)
 // ============================================================================
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -918,7 +918,7 @@ class SettingsScreen extends StatelessWidget {
 }
 
 // ============================================================================
-// CATEGORIES MANAGER (app/categories.tsx)
+// CATEGORIES MANAGER (From Replit app/categories.tsx)
 // ============================================================================
 class CategoriesManagerScreen extends StatelessWidget {
   const CategoriesManagerScreen({super.key});
@@ -1000,7 +1000,7 @@ class CategoriesManagerScreen extends StatelessWidget {
 }
 
 // ============================================================================
-// ADD TRANSACTION MODAL (app/(tabs)/add.tsx)
+// ADD TRANSACTION MODAL (From Replit app/(tabs)/add.tsx)
 // ============================================================================
 class AddTransactionModal extends StatefulWidget {
   const AddTransactionModal({super.key});
